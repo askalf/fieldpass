@@ -11,6 +11,7 @@
     "test": "node --test",
     "demo": "node demo/run-demo.mjs",
     "demo:escalation": "node demo/escalation-demo.mjs",
+    "calibrate:judge": "node demo/calibrate-judge.mjs",
     "capture:live": "node demo/capture-live.mjs",
     "e2e:live": "node demo/e2e-live.mjs",
     "scan": "node bin/picket.mjs"

@@ -41,3 +41,23 @@ export function makeClaudeBackend(opts = {}) {
     return parseVerdicts(text);
   };
 }
+
+/**
+ * dario backend — run the judge on your Claude Pro/Max SUBSCRIPTION instead of a
+ * metered API key, by routing through a local dario proxy (github.com/askalf/dario).
+ * dario is Anthropic-compatible at http://localhost:3456; it rebuilds the request
+ * into Claude Code wire-shape so it bills to the subscription pool, then forwards to
+ * Anthropic. The api key is the literal string "dario" (dario supplies the real OAuth).
+ *
+ * Caveat: dario normalizes the body toward CC's shape, so the `output_config.format`
+ * JSON-schema constraint may be dropped — the model returns prose-wrapped JSON instead
+ * of schema-enforced JSON. That's fine here: the prompt already demands JSON and
+ * parseVerdicts() tolerates prose-wrapped output. Override the endpoint with DARIO_URL.
+ */
+export function makeDarioBackend(opts = {}) {
+  return makeClaudeBackend({
+    baseURL: opts.baseURL ?? process.env.DARIO_URL ?? 'http://localhost:3456',
+    apiKey: opts.apiKey ?? 'dario',
+    ...opts,
+  });
+}

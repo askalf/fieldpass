@@ -14,7 +14,7 @@
 import { captureFromHtml } from '../src/capture.mjs';
 import { detect } from '../src/detect.mjs';
 import { LLMJudge, applyEscalations, heuristicBackend } from '../src/judge.mjs';
-import { makeClaudeBackend } from '../src/claude-judge.mjs';
+import { makeClaudeBackend, makeDarioBackend } from '../src/claude-judge.mjs';
 import { buildSafeObservation } from '../src/neutralize.mjs';
 
 const URL = 'https://acme-vendor.example/portal';
@@ -48,11 +48,15 @@ const leaked = buildSafeObservation(obs, deterministic);
 const novelLeaked = leaked.text.includes('collector@evil-mail.example');
 console.log(`\n  ⚠ the conversational payload ${novelLeaked ? 'SLIPPED THROUGH' : 'was caught'} — it reaches the model: ${novelLeaked}`);
 
-const useClaude = !!process.env.ANTHROPIC_API_KEY;
-const backend = useClaude ? makeClaudeBackend() : heuristicBackend;
-const label = useClaude
-  ? 'Claude (claude-haiku-4-5)'
-  : 'heuristic stand-in — set ANTHROPIC_API_KEY for the real claude-haiku-4-5 judge';
+// Prefer dario (judge runs on your Claude subscription) → direct Anthropic key → heuristic.
+const useDario = process.env.PICKET_JUDGE === 'dario' || !!process.env.DARIO_URL;
+const useClaude = !useDario && !!process.env.ANTHROPIC_API_KEY;
+const backend = useDario ? makeDarioBackend() : useClaude ? makeClaudeBackend() : heuristicBackend;
+const label = useDario
+  ? `dario → Claude subscription (claude-haiku-4-5) @ ${process.env.DARIO_URL || 'http://localhost:3456'}`
+  : useClaude
+    ? 'Claude (claude-haiku-4-5)'
+    : 'heuristic stand-in — set PICKET_JUDGE=dario (or ANTHROPIC_API_KEY) for the real judge';
 
 console.log(bar(`STAGE 2 — LLM-judge escalation [${label}]`));
 const judge = new LLMJudge({ backend });
