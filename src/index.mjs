@@ -9,6 +9,7 @@
 export { GovernedBrowser, KeeperStub } from './govern.mjs';
 export { ContextBroker } from './broker.mjs';
 export { ReplayOracle, snapshot, diffSnapshots, verifyClaims, stableHash } from './oracle.mjs';
+export { SessionRecorder, toCanonSkill, replaySkill, skillHash, canonicalJson } from './skill.mjs';
 export { detect, analyzeNode, ACTIONS, worstAction, severityToAction } from './detect.mjs';
 export { captureFromHtml, captureFromBridge } from './capture.mjs';
 export { buildSafeObservation } from './neutralize.mjs';
