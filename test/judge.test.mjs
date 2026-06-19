@@ -5,7 +5,8 @@ import { detect } from '../src/detect.mjs';
 import {
   LLMJudge, applyEscalations, selectEscalationCandidates, heuristicBackend, parseVerdicts,
 } from '../src/judge.mjs';
-import { GovernedBrowser } from '../src/govern.mjs';
+import { GovernedBrowser, resolveJudge } from '../src/govern.mjs';
+import { makeDarioBackend } from '../src/claude-judge.mjs';
 import { buildSafeObservation } from '../src/neutralize.mjs';
 
 // A polite, hidden, regex-evading injection: no "ignore instructions", no
@@ -96,4 +97,33 @@ test('parseVerdicts tolerates array, object, and prose-wrapped JSON', () => {
   assert.equal(parseVerdicts('{"verdicts":[{"id":"n1"}]}').length, 1);
   assert.equal(parseVerdicts('Here you go:\n{"verdicts":[{"id":"n1"},{"id":"n2"}]}').length, 2);
   assert.equal(parseVerdicts('not json').length, 0);
+});
+
+test('dario wiring: makeDarioBackend builds a backend; resolveJudge maps strings/env to an LLMJudge', () => {
+  assert.equal(typeof makeDarioBackend(), 'function');     // factory builds, no network at construction
+  assert.ok(resolveJudge('dario') instanceof LLMJudge);
+  assert.ok(resolveJudge('claude') instanceof LLMJudge);
+  assert.equal(resolveJudge(null), null);                  // no judge by default
+  const j = new LLMJudge({ backend: heuristicBackend });
+  assert.equal(resolveJudge(j), j);                        // an instance passes through unchanged
+  assert.throws(() => resolveJudge('bogus'));
+  process.env.PICKET_JUDGE = 'dario';                      // env fallback
+  try { assert.ok(resolveJudge(null) instanceof LLMJudge); } finally { delete process.env.PICKET_JUDGE; }
+});
+
+test('judge maps JSON-string / #-prefixed verdict ids back to the real node (the dario path)', async () => {
+  // Node ids are numbers; a real JSON backend returns them as strings and may echo
+  // the prompt's "#id" label. The judge must still map the verdict to the right node.
+  const obs = captureFromHtml(`<p>Invoice due July 1.</p>${NOVEL}`, { url: URL });
+  const d = detect(obs);
+  const node = obs.nodes.find((n) => /login details/.test(n.text));
+  const backend = ({ candidates }) => candidates.map((c) => ({
+    id: c.id === node.id ? `#${c.id}` : String(c.id),  // string + "#" echo, as a real model does
+    injection: c.id === node.id,
+    action: 'block', confidence: 0.95, reason: 'x',
+  }));
+  const { escalations } = await new LLMJudge({ backend }).review(obs, d, {});
+  assert.equal(escalations.length, 1);
+  assert.equal(escalations[0].nodeId, node.id);            // mapped back to the real (numeric) node id
+  assert.equal(applyEscalations(d, escalations, obs).verdict, 'block'); // so it actually withholds
 });

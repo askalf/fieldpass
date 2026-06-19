@@ -12,10 +12,28 @@
 
 import { captureFromHtml, captureFromBridge } from './capture.mjs';
 import { detect } from './detect.mjs';
-import { applyEscalations } from './judge.mjs';
+import { applyEscalations, LLMJudge } from './judge.mjs';
+import { makeClaudeBackend, makeDarioBackend } from './claude-judge.mjs';
 import { buildSafeObservation } from './neutralize.mjs';
 import { makePolicy } from './policy.mjs';
 import { DANGEROUS_ACTION, matchAny, hostOf } from './patterns.mjs';
+
+/**
+ * Resolve the `judge` option into an LLMJudge (or null). Accepts:
+ *   - an LLMJudge instance (anything with .review)  → used as-is
+ *   - "dario"   → judge on your Claude subscription via the local dario proxy
+ *   - "claude"  → judge via a direct Anthropic API key (ANTHROPIC_API_KEY)
+ *   - null/undefined → fall back to PICKET_JUDGE env ("dario" | "claude"), else no judge
+ * The model call is lazy (no SDK loaded until a review actually runs).
+ */
+export function resolveJudge(judge, opts = {}) {
+  const choice = judge ?? process.env.PICKET_JUDGE ?? null;
+  if (!choice) return null;
+  if (typeof choice === 'object' && typeof choice.review === 'function') return choice;
+  if (choice === 'dario') return new LLMJudge({ backend: makeDarioBackend(opts.dario), ...opts.llmJudge });
+  if (choice === 'claude') return new LLMJudge({ backend: makeClaudeBackend(opts.claude), ...opts.llmJudge });
+  throw new Error(`GovernedBrowser: unknown judge "${choice}" (use "dario", "claude", or an LLMJudge instance)`);
+}
 
 /**
  * Stands in for @askalf/keeper. The agent calls login(persona); the credential
@@ -56,7 +74,9 @@ export class GovernedBrowser {
     this.allowlist = opts.allowlist || [];
     this.keeper = opts.keeper || new KeeperStub();
     this.policy = opts.policy || makePolicy();
-    this.judge = opts.judge || null; // optional LLMJudge for novel-phrasing escalation
+    // optional second line for novel-phrasing escalation: an LLMJudge instance, or
+    // "dario"/"claude" to wire one up (also via PICKET_JUDGE). See resolveJudge.
+    this.judge = resolveJudge(opts.judge, { dario: opts.dario, claude: opts.claude, llmJudge: opts.llmJudge });
     this.task = opts.task || '';
     this.audit = [];
   }
@@ -69,9 +89,15 @@ export class GovernedBrowser {
    * @returns {Promise<{observation, detection, decision, safe}>}
    */
   async observe(input) {
-    const observation = input.html != null
-      ? captureFromHtml(input.html, { url: input.url })
-      : await captureFromBridge(input);
+    // Prefer the live CDP bridge whenever one is reachable — even for inline
+    // `html`, which captureFromBridge renders via page.setContent so real
+    // computed styles resolve class-based hiding. The static parser is the
+    // browserless fallback (CI, offline demos), not a silent override that
+    // would bypass the whole reason the bridge exists on a hostile page.
+    const hasBridge = input.browserWSEndpoint != null || input.browserURL != null;
+    const observation = hasBridge
+      ? await captureFromBridge(input)
+      : captureFromHtml(input.html, { url: input.url });
     const deterministic = detect(observation);
 
     // Optional second line: escalate the ambiguous residue to an LLM judge.

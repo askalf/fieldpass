@@ -132,7 +132,12 @@ export class LLMJudge {
     const candidates = selectEscalationCandidates(obs, detection, { maxNodes: this.maxNodes });
     if (candidates.length === 0) return { escalations: [], verdicts: [], candidates: [] };
 
-    const current = new Map(candidates.map((c) => [c.id, c.currentAction]));
+    // Index candidates by STRING id. Node ids may be numbers, but a JSON backend
+    // returns them as strings — and a model can echo the prompt's `[#id]` label as
+    // "#id". Normalize both sides so the verdict maps back to the real candidate
+    // (whose original-typed `.id` we reuse, so applyEscalations matches obs.nodes).
+    const norm = (id) => String(id).replace(/^#/, '').trim();
+    const byId = new Map(candidates.map((c) => [norm(c.id), c]));
     const { system, user } = buildJudgePrompt(candidates, { ...ctx, origin: obs.origin });
 
     let verdicts = [];
@@ -145,11 +150,12 @@ export class LLMJudge {
     const escalations = [];
     for (const v of verdicts) {
       if (!v || !v.injection) continue;
-      const cur = current.get(v.id) || 'allow';
+      const cand = byId.get(norm(v.id));
+      if (!cand) continue; // a verdict for an id we never sent — ignore, don't act on it
       const conf = typeof v.confidence === 'number' ? v.confidence : 1;
       if (conf < this.minConfidence) continue;
-      if (actionRank(v.action) <= actionRank(cur)) continue; // escalate-only
-      escalations.push({ nodeId: v.id, action: v.action, reason: v.reason || 'llm-judge', confidence: conf });
+      if (actionRank(v.action) <= actionRank(cand.currentAction)) continue; // escalate-only
+      escalations.push({ nodeId: cand.id, action: v.action, reason: v.reason || 'llm-judge', confidence: conf });
     }
     return { escalations, verdicts, candidates };
   }

@@ -148,6 +148,26 @@ never to Chrome directly.
   tier — right for a binary classifier; bump to Opus for the hardest pages) and
   forces schema-valid JSON via `output_config.format`. No `ANTHROPIC_API_KEY` → a
   labeled dependency-free heuristic stand-in runs, so the tier is always testable.
+- **Run the judge on your Claude subscription via [dario](https://github.com/askalf/dario).**
+  dario is a local Anthropic-compatible proxy (`http://localhost:3456`) that routes
+  Claude calls through your Pro/Max subscription instead of a metered API key. Point the
+  judge at it with `makeDarioBackend()`, `new GovernedBrowser({ judge: 'dario' })`, or
+  `PICKET_JUDGE=dario` (endpoint overridable with `DARIO_URL`):
+  ```bash
+  dario login && dario proxy            # once: subscription-routed Anthropic endpoint
+  PICKET_JUDGE=dario npm run demo:escalation
+  ```
+  dario rebuilds the request into Claude-Code wire-shape, so the `output_config.format`
+  schema constraint is dropped — `parseVerdicts()` already tolerates the resulting
+  prose-wrapped JSON, and the judge normalizes verdict ids (`#id`, numeric/string) back
+  to nodes, so escalation is robust whether the backend enforces the schema or not.
+- **Calibrate the threshold against a labeled corpus.** `PICKET_JUDGE=dario npm run calibrate:judge`
+  runs `demo/judge-corpus.mjs` (novel-phrasing injections + benign-but-ambiguous traps)
+  through the judge and sweeps `minConfidence`, reporting precision / recall / F1 at each
+  and recommending the max-margin value. On the current 34-case corpus the real judge
+  separates cleanly (P/R/F1 = 1.0 across the whole sweep), so the threshold is
+  non-discriminating and the default **0.6** stands — extend the corpus with real
+  captures to keep stress-testing it.
 
 - **Safe view** (`src/neutralize.mjs`) is the only thing the model is allowed to
   see. Labeling untrusted text "untrusted" is known to be insufficient, so
