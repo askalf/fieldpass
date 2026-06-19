@@ -16,7 +16,10 @@ import { applyEscalations, LLMJudge } from './judge.mjs';
 import { makeClaudeBackend, makeDarioBackend } from './claude-judge.mjs';
 import { buildSafeObservation } from './neutralize.mjs';
 import { makePolicy } from './policy.mjs';
-import { DANGEROUS_ACTION, matchAny, hostOf } from './patterns.mjs';
+import { DANGEROUS_ACTION, CREDENTIAL_FIELD, SENSITIVE, matchAny, hostOf } from './patterns.mjs';
+
+/** Action types the gate knows how to reason about; anything else is denied. */
+const KNOWN_ACTIONS = new Set(['navigate', 'click', 'type', 'submit']);
 
 /**
  * Resolve the `judge` option into an LLMJudge (or null). Accepts:
@@ -123,15 +126,29 @@ export class GovernedBrowser {
    * @param {{type:'navigate'|'click'|'type'|'submit', url?, selector?, text?, intent?, credential?}} action
    * @returns {{allowed:boolean, reason:string, requireApproval?:boolean}}
    */
-  gate(action) {
+  gate(action = {}) {
+    // Default-deny: the gate only passes action types it can positively reason
+    // about. An unrecognized (or missing) type is refused, never waved through.
+    if (!KNOWN_ACTIONS.has(action.type)) {
+      return this._log({ plane: 'action', action, allowed: false, reason: `unrecognized action type "${action.type}" — denied (gate is default-deny)` });
+    }
     if (action.type === 'navigate') {
       const host = hostOf(action.url);
       const ok = this.allowlist.length === 0 ||
         this.allowlist.some((d) => host === d || (host && host.endsWith('.' + d)));
-      if (!ok) return this._log({ plane: 'action', action, allowed: false, reason: `navigation to ${host} is off-allowlist` });
+      if (!ok) return this._log({ plane: 'action', action, allowed: false, reason: `navigation to ${host || action.url} is off-allowlist` });
     }
-    if (action.type === 'type' && action.credential) {
-      return this._log({ plane: 'action', action: { ...action, text: '<redacted>' }, allowed: false, reason: 'credentials must be injected via login(), never typed into a field by the agent' });
+    if (action.type === 'type') {
+      // Refuse to key a secret into a field whether or not the caller flagged
+      // it: infer from a credential-shaped target or a secret-looking value.
+      // The agent obtaining and typing a secret defeats the whole identity plane.
+      const looksCredential =
+        action.credential ||
+        CREDENTIAL_FIELD.test(action.selector || '') ||
+        matchAny(action.text || '', SENSITIVE);
+      if (looksCredential) {
+        return this._log({ plane: 'action', action: { ...action, text: '<redacted>' }, allowed: false, reason: 'credential-shaped field/value — must be injected via login(), never typed by the agent' });
+      }
     }
     if (action.type === 'click' || action.type === 'submit') {
       const blob = `${action.selector || ''} ${action.text || ''} ${action.intent || ''}`;
