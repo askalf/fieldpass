@@ -54,8 +54,10 @@ npm test               # 43 unit tests, no browser needed
 npm run demo           # the pwn-vs-governed showcase + writes demo/REPORT.md
 npm run demo:escalation  # deterministic miss → LLM-judge catch
 npm run demo:mcp         # drive the governed browser over the MCP protocol
-npx picket scan demo/booby-trapped.html --safe   # CLI; exit 0 allow · 1 quarantine · 2 block
+npx -y github:askalf/picket scan demo/booby-trapped.html --safe   # CLI; exit 0 allow · 1 quarantine · 2 block
 ```
+
+> Not yet on npm — installs straight from GitHub.
 
 ### What the demo shows
 
@@ -93,7 +95,7 @@ Wire it into an MCP client (e.g. Claude Code `.mcp.json` or Claude Desktop):
   "mcpServers": {
     "picket": {
       "command": "npx",
-      "args": ["-y", "@askalf/picket", "picket-mcp"],
+      "args": ["-y", "github:askalf/picket", "picket-mcp"],
       "env": {
         "PICKET_ALLOWLIST": "example.com,acme.example",
         "PICKET_CDP": "http://127.0.0.1:9222",
