@@ -11,7 +11,8 @@
 
 import {
   INSTRUCTION_TO_AI, AUTHORITY_SPOOF, TOOL_CALL, EXFIL_VERB, SENSITIVE,
-  SUSPICIOUS_SINKS, stripInvisible, stripSinks, matchAny, matchedLabels,
+  SUSPICIOUS_SINKS, SCHEME_SINK_RE, HARD_INSTRUCTION,
+  stripInvisible, stripSinks, matchAny, matchedLabels,
   extractUrls, extractEmails, hostOf,
 } from './patterns.mjs';
 
@@ -51,6 +52,26 @@ export function severityToAction(sev) {
 }
 
 /**
+ * The exfil leg: an outbound verb in PROSE plus a sink that leaves our origin.
+ * A sink is an off-origin URL, any email, a known data-collector host, or a
+ * non-http(s) scheme (data:/javascript:/blob:…) that hostOf can't classify.
+ * The verb is matched against sink-stripped text so a word inside a hostname or
+ * path (e.g. "upload" in upload.wikimedia.org) can't satisfy it on its own.
+ */
+function hasExfilLeg(text, ctx) {
+  const offOriginUrl = extractUrls(text).some((u) => {
+    const h = hostOf(u);
+    return h && h !== ctx.originHost;
+  });
+  const externalSink =
+    offOriginUrl ||
+    extractEmails(text).length > 0 ||
+    SUSPICIOUS_SINKS.some((re) => re.test(text)) ||
+    SCHEME_SINK_RE.test(text);
+  return externalSink && matchAny(stripSinks(text), EXFIL_VERB);
+}
+
+/**
  * Analyze one node. Returns a Finding, or null when the node is benign.
  * The null path is where false-positive discipline lives: visible marketing
  * text that merely contains a URL or the word "email" must not trip the wire.
@@ -70,17 +91,9 @@ export function analyzeNode(node, ctx) {
     exfilTarget: false,
   };
 
-  // Exfil leg: an outbound verb AND a sink that leaves our origin.
   const urls = extractUrls(clean);
   const emails = extractEmails(clean);
-  const offOriginUrl = urls.some((u) => {
-    const h = hostOf(u);
-    return h && h !== ctx.originHost;
-  });
-  const knownSink = SUSPICIOUS_SINKS.some((re) => re.test(clean));
-  const externalSink = offOriginUrl || emails.length > 0 || knownSink;
-  // verb must appear in PROSE, not inside the sink's own URL/email text
-  signals.exfilTarget = externalSink && matchAny(stripSinks(clean), EXFIL_VERB);
+  signals.exfilTarget = hasExfilLeg(clean, ctx);
 
   // A node is only a Finding if it carries a command signal, OR it is hidden
   // with substance, OR it fuses exfil with a reason to care. Pure-hidden
@@ -134,6 +147,135 @@ export function analyzeNode(node, ctx) {
   };
 }
 
+/* Cross-node split detector tunables: how far co-location is allowed to reach. */
+const SPLIT_WINDOW_NODES = 5;
+const SPLIT_WINDOW_CHARS = 800;
+
+/** An email whose domain is NOT under the page's own registrable domain. */
+function hasOffOriginEmail(text, ctx) {
+  const emails = extractEmails(text);
+  if (emails.length === 0) return false;
+  if (!ctx.originHost) return true;
+  const root = ctx.originHost.split('.').slice(-2).join('.');
+  return emails.some((e) => {
+    const dom = (e.split('@')[1] || '').toLowerCase();
+    return dom && dom !== root && !dom.endsWith('.' + root);
+  });
+}
+
+/**
+ * A sink that leaves our origin — stricter than the per-node check, which
+ * treats ANY email as external. The split window sees more text and so more
+ * incidental matches, so a same-origin "email billing@acme.example" contact
+ * line must NOT qualify as an exfil destination.
+ */
+function hasOffOriginSink(text, ctx) {
+  const offUrl = extractUrls(text).some((u) => {
+    const h = hostOf(u);
+    return h && h !== ctx.originHost;
+  });
+  return offUrl || SUSPICIOUS_SINKS.some((re) => re.test(text)) || SCHEME_SINK_RE.test(text) || hasOffOriginEmail(text, ctx);
+}
+
+const hasOffOriginExfilLeg = (text, ctx) => hasOffOriginSink(text, ctx) && matchAny(stripSinks(text), EXFIL_VERB);
+
+/** Does this node carry a low-FP leg worth redacting as part of a split? Note an
+ *  exfil VERB alone does NOT qualify ("email us at…" is benign) — only an
+ *  unambiguous instruction, named sensitive data, or an off-origin sink. */
+const isSplitContributor = (text, ctx) =>
+  matchAny(text, HARD_INSTRUCTION) || matchAny(text, AUTHORITY_SPOOF) ||
+  matchAny(text, SENSITIVE) || hasOffOriginSink(text, ctx);
+
+/**
+ * Catch a trifecta SPLIT across adjacent nodes. analyzeNode is per-node, so an
+ * attacker can scatter the legs — "ignore previous instructions" in one node,
+ * "the session cookie" in the next, the exfil sink in a third — and no single
+ * node trips. This slides a small window over consecutive substantive nodes (in
+ * DOM order) and re-tests co-location on the concatenation.
+ *
+ * Precision is the whole concern here; the bar is deliberately high:
+ *   - BLOCK: an unambiguous instruction/authority phrase (HARD_INSTRUCTION) +
+ *     sensitive data + an OFF-ORIGIN exfil leg, fused within the window.
+ *   - QUARANTINE: a HIDDEN span that fuses sensitive data + an off-origin exfil
+ *     leg (the hidden "polite" split, which carries no hard imperative).
+ * Three guards keep it from firing on benign neighbors of a real injection:
+ *   1. windows containing a node that is ALREADY a self-contained block/trifecta
+ *      are skipped — that malice is pinned; don't sweep in its neighbors;
+ *   2. the exfil leg must be OFF-ORIGIN (same-origin contact info doesn't count);
+ *   3. only nodes that themselves carry a leg (isSplitContributor) are redacted.
+ * The visible, imperative-free polite split is intentionally left to the LLM
+ * judge — catching it deterministically would mean false-positives on ordinary
+ * account/help pages.
+ */
+function detectSplitTrifecta(nodes, ctx, existing) {
+  const flagged = new Set(existing.map((f) => f.nodeId));
+  const blocked = new Set(existing.filter((f) => f.action === 'block' || f.trifecta).map((f) => f.nodeId));
+  const idx = nodes
+    .map((n, i) => i)
+    .filter((i) => {
+      const s = nodes[i].source;
+      return (s === 'text' || s === 'comment' || s === 'meta') && (nodes[i].text || '').trim();
+    });
+  const out = [];
+
+  for (let a = 0; a < idx.length; a++) {
+    const win = [];
+    let chars = 0;
+    for (let b = a; b < idx.length && win.length < SPLIT_WINDOW_NODES; b++) {
+      const node = nodes[idx[b]];
+      chars += (node.text || '').length;
+      if (win.length && chars > SPLIT_WINDOW_CHARS) break;
+      win.push(node);
+      if (win.length < 2) continue;
+      if (win.some((n) => blocked.has(n.id))) continue; // malice already pinned to one node
+
+      const text = stripInvisible(win.map((n) => n.text || '').join(' • '));
+      const hardInstr = matchAny(text, HARD_INSTRUCTION) || matchAny(text, AUTHORITY_SPOOF);
+      const sensitive = matchAny(text, SENSITIVE);
+      const exfil = hasOffOriginExfilLeg(text, ctx);
+      const hiddenSpan = win.some((n) => n.hidden);
+
+      const isBlock = hardInstr && sensitive && exfil;
+      const isQuar = !isBlock && hiddenSpan && sensitive && exfil;
+      if (!isBlock && !isQuar) continue;
+
+      // Redact only the leg-bearing nodes the per-node pass let through.
+      const fresh = win.filter((n) => !flagged.has(n.id) && isSplitContributor(n.text || '', ctx));
+      if (fresh.length === 0) continue;
+
+      const span = win.map((n) => n.id);
+      const action = isBlock ? 'block' : 'quarantine';
+      for (const n of fresh) {
+        flagged.add(n.id);
+        const cats = ['split-injection', 'sensitive-data', 'exfil-lure'];
+        if (isBlock) cats.push('instruction-to-ai');
+        if (n.hidden) cats.push('hidden-text');
+        out.push({
+          nodeId: n.id, source: n.source, tag: n.tag, path: n.path,
+          hidden: !!n.hidden, hiddenReasons: n.hiddenReasons || [],
+          excerpt: stripInvisible(n.text || '').replace(/\s+/g, ' ').trim().slice(0, 160),
+          categories: cats,
+          signals: { split: true, hidden: !!n.hidden, sensitive: true, exfilTarget: true, instructionToAI: isBlock },
+          matched: {},
+          sinks: [],
+          score: isBlock ? 9 : 6,
+          trifecta: isBlock,
+          severity: isBlock ? 'critical' : 'high',
+          action,
+          split: {
+            span,
+            reason: isBlock
+              ? 'lethal trifecta split across adjacent nodes'
+              : 'hidden span fuses sensitive data with an off-origin exfil sink',
+          },
+        });
+      }
+      break; // this start index is accounted for; advance the window origin
+    }
+  }
+  return out;
+}
+
 /**
  * Detect over a whole Observation.
  * @param {import('./observation.mjs').Observation} obs
@@ -146,6 +288,7 @@ export function detect(obs) {
     const f = analyzeNode(node, ctx);
     if (f) findings.push(f);
   }
+  for (const f of detectSplitTrifecta(obs.nodes, ctx, findings)) findings.push(f);
   findings.sort((a, b) => actionRank(b.action) - actionRank(a.action) || b.score - a.score);
 
   const verdict = findings.reduce((acc, f) => worstAction(acc, f.action), 'allow');
