@@ -17,6 +17,7 @@
     "capture:live": "node demo/capture-live.mjs",
     "e2e:live": "node demo/e2e-live.mjs",
     "demo:broker": "node demo/broker-demo.mjs",
+    "demo:oracle": "node demo/oracle-demo.mjs",
     "mcp": "node bin/picket-mcp.mjs",
     "scan": "node bin/picket.mjs"
   },

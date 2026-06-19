@@ -50,10 +50,11 @@ by a security substrate the rest of the field doesn't have.
 
 ```bash
 npm install
-npm test               # 43 unit tests, no browser needed
+npm test               # 58 unit tests, no browser needed
 npm run demo           # the pwn-vs-governed showcase + writes demo/REPORT.md
 npm run demo:escalation  # deterministic miss → LLM-judge catch
 npm run demo:mcp         # drive the governed browser over the MCP protocol
+npm run demo:oracle      # cull an agent's browser fabrications, deterministically
 npx -y github:askalf/picket scan demo/booby-trapped.html --safe   # CLI; exit 0 allow · 1 quarantine · 2 block
 ```
 
@@ -270,9 +271,13 @@ seam is the real `@askalf/keeper` client.)
    reads a checked-out authenticated session through the firewall.
 4. **Session → canon skill** — record a governed session once, generalize to a
    *signed, pinned, drift-checked* `canon` browser skill; replay deterministically.
-5. **Replay verification oracle** — re-run a session and diff DOM/screenshot/
-   network against a golden to cull an agent's "I fixed it" fabrications (the
-   $1,500-audit philosophy, pointed at browser claims).
+5. ~~**Replay verification oracle**~~ — **done** (`src/oracle.mjs`): a
+   DETERMINISTIC gate (no LLM — a model asked "did it work?" confabulates "yes")
+   that culls an agent's "I did it / the page now shows X" browser fabrications.
+   `snapshot` fingerprints a page, `diffSnapshots` diffs a re-run against a golden
+   (flagging a clean page that *regressed to an injection*), and `verifyClaims`
+   asserts explicit claims (`containsText`/`absentText`/`verdict`) against the
+   REAL re-captured page with evidence. The $1,500-audit philosophy, on the browser.
 
 ---
 
@@ -290,6 +295,7 @@ src/
   policy.mjs        LocalPolicy + WardenClient (fail-safe escalation)
   govern.mjs        GovernedBrowser: the 3 planes + KeeperStub
   broker.mjs        ContextBroker: pool of keeper-backed persona contexts
+  oracle.mjs        replay verification oracle: snapshot/diff/verify (deterministic)
   mcp.mjs           MCP server: the 3 planes as picket_observe/gate/login
   index.mjs         barrel
 demo/
@@ -300,9 +306,10 @@ demo/
   escalation-demo.mjs  deterministic miss → judge catch
   mcp-demo.mjs         drive the governed browser over the MCP protocol
   broker-demo.mjs      a pool of isolated persona contexts on one shared Chrome
+  oracle-demo.mjs      cull an agent's browser fabrications, deterministically
 bin/picket.mjs         CLI (scan, --json, --safe, CI exit codes)
 bin/picket-mcp.mjs     MCP server (stdio) entrypoint
-test/                  detector/gate/judge/cache/mcp/broker — 51 tests, no browser
+test/                  detector/gate/judge/cache/mcp/broker/oracle — 58 tests, no browser
 ```
 
 MIT.
