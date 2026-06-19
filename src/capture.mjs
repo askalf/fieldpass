@@ -201,9 +201,27 @@ function inPageExtract() {
 /**
  * Drive the bridge to capture a live page. Non-destructive: isolated context,
  * close just our page/context, then disconnect — never browser.close().
- * @param {{browserURL?: string, browserWSEndpoint?: string, url: string, timeoutMs?: number}} opts
+ *
+ * If `opts.page` is supplied (e.g. a ContextBroker-checked-out, keeper-logged-in
+ * persona page), it is reused as-is — no context is created or closed and the
+ * browser is NOT disconnected: the caller owns that page's lifecycle. This is
+ * how an authenticated persona session gets read through the firewall.
+ * @param {{browserURL?: string, browserWSEndpoint?: string, page?: object, url?: string, html?: string, timeoutMs?: number}} opts
  */
 export async function captureFromBridge(opts) {
+  const navOpts = { waitUntil: 'domcontentloaded', timeout: opts.timeoutMs || 20000 };
+
+  if (opts.page) {
+    const page = opts.page;
+    if (opts.html != null) await page.setContent(opts.html, navOpts);
+    else if (opts.url) await page.goto(opts.url, navOpts);
+    const { title, nodes } = await page.evaluate(inPageExtract);
+    const url = opts.url || (opts.html != null ? 'inline://content' : (page.url ? page.url() : 'about:blank'));
+    let origin = '';
+    try { origin = new URL(url).origin; } catch { /* noop */ }
+    return { url, origin, title, nodes, capturedBy: 'cdp' };
+  }
+
   const { default: puppeteer } = await import('puppeteer-core');
   const browser = await puppeteer.connect({
     browserURL: opts.browserURL,
@@ -214,7 +232,6 @@ export async function captureFromBridge(opts) {
     context = await browser.createBrowserContext();
     const page = await context.newPage();
     await page.setCacheEnabled(false);
-    const navOpts = { waitUntil: 'domcontentloaded', timeout: opts.timeoutMs || 20000 };
     // setContent injects exact HTML (real computed styles, no hosting); goto for live URLs.
     if (opts.html != null) await page.setContent(opts.html, navOpts);
     else await page.goto(opts.url, navOpts);
