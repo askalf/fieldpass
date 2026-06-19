@@ -50,11 +50,12 @@ by a security substrate the rest of the field doesn't have.
 
 ```bash
 npm install
-npm test               # 58 unit tests, no browser needed
+npm test               # 64 unit tests, no browser needed
 npm run demo           # the pwn-vs-governed showcase + writes demo/REPORT.md
 npm run demo:escalation  # deterministic miss → LLM-judge catch
 npm run demo:mcp         # drive the governed browser over the MCP protocol
 npm run demo:oracle      # cull an agent's browser fabrications, deterministically
+npm run demo:skill       # record a session → canon-pinnable skill → replay
 npx -y github:askalf/picket scan demo/booby-trapped.html --safe   # CLI; exit 0 allow · 1 quarantine · 2 block
 ```
 
@@ -256,6 +257,8 @@ seam is the real `@askalf/keeper` client.)
 
 ## Roadmap (prototype → product)
 
+All five shipped — the prototype is now a layered product: deterministic firewall → LLM-judge → MCP surface → pooled persona sessions → replay verification → canon-pinned skills.
+
 1. ~~**LLM-judge escalation**~~ — **done** (`src/judge.mjs`): ambiguous residue
    routes to a `claude-haiku-4-5` verdict; the deterministic fast path keeps the
    obvious 90%. Calibration corpus and a content-keyed verdict cache (repeat
@@ -269,8 +272,12 @@ seam is the real `@askalf/keeper` client.)
    concurrent agents never share a session, LRU eviction, and a non-destructive
    `close()` (disconnect, never `browser.close()`). `captureFromBridge({ page })`
    reads a checked-out authenticated session through the firewall.
-4. **Session → canon skill** — record a governed session once, generalize to a
-   *signed, pinned, drift-checked* `canon` browser skill; replay deterministically.
+4. ~~**Session → canon skill**~~ — **done** (`src/skill.mjs`): `SessionRecorder`
+   records a governed session (observes + gates + logins, secrets redacted),
+   `toCanonSkill` emits a JSON manifest that **canon loads as a skill** — `canon
+   scan`/`pin`/`sign`/`verify` work on it unchanged (proven: canon flags a session
+   that recorded a hostile page). `replaySkill` re-runs it deterministically via
+   the oracle. `skillHash` matches canon's pin hash. The browser, in the supply chain.
 5. ~~**Replay verification oracle**~~ — **done** (`src/oracle.mjs`): a
    DETERMINISTIC gate (no LLM — a model asked "did it work?" confabulates "yes")
    that culls an agent's "I did it / the page now shows X" browser fabrications.
@@ -296,6 +303,7 @@ src/
   govern.mjs        GovernedBrowser: the 3 planes + KeeperStub
   broker.mjs        ContextBroker: pool of keeper-backed persona contexts
   oracle.mjs        replay verification oracle: snapshot/diff/verify (deterministic)
+  skill.mjs         session recorder → canon-pinnable browser skill + replay
   mcp.mjs           MCP server: the 3 planes as picket_observe/gate/login
   index.mjs         barrel
 demo/
@@ -307,9 +315,10 @@ demo/
   mcp-demo.mjs         drive the governed browser over the MCP protocol
   broker-demo.mjs      a pool of isolated persona contexts on one shared Chrome
   oracle-demo.mjs      cull an agent's browser fabrications, deterministically
+  skill-demo.mjs       record a session → canon-pinnable skill → deterministic replay
 bin/picket.mjs         CLI (scan, --json, --safe, CI exit codes)
 bin/picket-mcp.mjs     MCP server (stdio) entrypoint
-test/                  detector/gate/judge/cache/mcp/broker/oracle — 58 tests, no browser
+test/                  detector/gate/judge/cache/mcp/broker/oracle/skill — 64 tests, no browser
 ```
 
 MIT.
