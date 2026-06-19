@@ -50,9 +50,10 @@ by a security substrate the rest of the field doesn't have.
 
 ```bash
 npm install
-npm test               # 21 unit tests, no browser needed
+npm test               # 43 unit tests, no browser needed
 npm run demo           # the pwn-vs-governed showcase + writes demo/REPORT.md
 npm run demo:escalation  # deterministic miss → LLM-judge catch
+npm run demo:mcp         # drive the governed browser over the MCP protocol
 npx picket scan demo/booby-trapped.html --safe   # CLI; exit 0 allow · 1 quarantine · 2 block
 ```
 
@@ -71,6 +72,43 @@ The governed run also exercises the **action gate** (off-allowlist navigation
 denied, "approve the wire transfer" stepped up, credential typing refused) and a
 **keeper-backed login** that returns an opaque lease — the secret never enters
 the agent's context.
+
+---
+
+## Use it as an MCP server
+
+picket ships an MCP server, so *any* MCP client — Claude Desktop, Claude Code,
+or your own agent runtime — gets a firewalled browser as three tools:
+
+| tool | plane | what it does |
+|------|-------|--------------|
+| `picket_observe` | perception | reads a page (`url` live via CDP, or inline `html`) and returns the **safe, instruction-stripped view** — injection payloads withheld |
+| `picket_gate` | action | `ALLOW` / `STEP-UP` / `DENY` for a `navigate`/`click`/`type`/`submit` |
+| `picket_login` | identity | leases a credential persona; the secret is filled at the browser layer, never returned |
+
+Wire it into an MCP client (e.g. Claude Code `.mcp.json` or Claude Desktop):
+
+```json
+{
+  "mcpServers": {
+    "picket": {
+      "command": "npx",
+      "args": ["-y", "@askalf/picket", "picket-mcp"],
+      "env": {
+        "PICKET_ALLOWLIST": "example.com,acme.example",
+        "PICKET_CDP": "http://127.0.0.1:9222",
+        "PICKET_JUDGE": "dario"
+      }
+    }
+  }
+}
+```
+
+`PICKET_CDP` points at a DevTools endpoint for live URLs (omit it to analyze
+inline `html` only). `PICKET_JUDGE` (`dario`/`claude`) turns on the LLM second
+line; `PICKET_ALLOWLIST`/`PICKET_TASK` scope the gate and the safe view. The
+server never returns the raw text of a blocked node — only the verdict and
+finding categories — so the firewall can't be defeated through its own output.
 
 ---
 
@@ -217,17 +255,19 @@ seam is the real `@askalf/keeper` client.)
 
 1. ~~**LLM-judge escalation**~~ — **done** (`src/judge.mjs`): ambiguous residue
    routes to a `claude-haiku-4-5` verdict; the deterministic fast path keeps the
-   obvious 90%. Next: confidence calibration + a cache so repeat pages are free.
-2. **Live context-broker** — promote the bridge from one shared Chrome to a pool
+   obvious 90%. Calibration corpus and a content-keyed verdict cache (repeat
+   fragments are free) are in.
+2. ~~**MCP server**~~ — **done** (`src/mcp.mjs`, `bin/picket-mcp.mjs`): the
+   governed browser as `picket_observe`/`picket_gate`/`picket_login` for any MCP
+   client. (Next: canon-scan the server itself.)
+3. **Live context-broker** — promote the bridge from one shared Chrome to a pool
    of isolated, keeper-backed persona contexts (checkout/checkin), which also
    fixes today's "shared prod, never close()" fragility.
-3. **Session → canon skill** — record a governed session once, generalize to a
+4. **Session → canon skill** — record a governed session once, generalize to a
    *signed, pinned, drift-checked* `canon` browser skill; replay deterministically.
-4. **Replay verification oracle** — re-run a session and diff DOM/screenshot/
+5. **Replay verification oracle** — re-run a session and diff DOM/screenshot/
    network against a golden to cull an agent's "I fixed it" fabrications (the
    $1,500-audit philosophy, pointed at browser claims).
-5. **MCP server** — expose the governed browser as an MCP tool so *any* agent gets
-   a firewalled browser; the server is itself canon-scanned.
 
 ---
 
@@ -244,6 +284,7 @@ src/
   neutralize.mjs    Observation + Detection → safe, model-facing view
   policy.mjs        LocalPolicy + WardenClient (fail-safe escalation)
   govern.mjs        GovernedBrowser: the 3 planes + KeeperStub
+  mcp.mjs           MCP server: the 3 planes as picket_observe/gate/login
   index.mjs         barrel
 demo/
   booby-trapped.html   8 payloads + 2 benign controls
@@ -251,9 +292,10 @@ demo/
   governed-agent.mjs   same page through picket → caught
   run-demo.mjs         side-by-side + writes report.json / REPORT.md
   escalation-demo.mjs  deterministic miss → judge catch
+  mcp-demo.mjs         drive the governed browser over the MCP protocol
 bin/picket.mjs         CLI (scan, --json, --safe, CI exit codes)
-test/detect.test.mjs   13 detector/gate/keeper tests
-test/judge.test.mjs    8 escalation tests — 21 total, no browser
+bin/picket-mcp.mjs     MCP server (stdio) entrypoint
+test/                  detector/gate/judge/cache/mcp — 43 tests, no browser
 ```
 
 MIT.
