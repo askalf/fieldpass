@@ -24,6 +24,24 @@ export const INSTRUCTION_TO_AI = [
   /\bimportant\s*[:!]\s*(instruction|message|note)\s+(for|to)\s+(the\s+)?(ai|assistant|agent|model)/i,
 ];
 
+/**
+ * High-precision subset of INSTRUCTION_TO_AI — the imperatives that essentially
+ * never occur in benign page prose. The cross-node split detector widens its
+ * view across several adjacent nodes, which widens the false-positive surface,
+ * so only these unambiguous phrases qualify as the "instruction" leg there.
+ * (The weak-but-useful patterns like "from now on" / "you are now" stay in the
+ * per-node detector, where co-location in ONE node is already the strong signal.)
+ */
+export const HARD_INSTRUCTION = [
+  /\bignore\s+(all\s+|any\s+|the\s+|your\s+)*(previous|prior|above|earlier|preceding|former)\s+(instructions?|prompts?|context|messages?|directions?)/i,
+  /\bdisregard\s+(all\s+|the\s+|any\s+|your\s+)*(previous|prior|above|earlier|system|instructions?|context)/i,
+  /\bdo\s+not\s+(tell|inform|alert|notify|warn|mention\s+(this\s+)?to)\s+(the\s+)?(user|human|operator|owner)/i,
+  /\b(reveal|print|show|output|repeat|echo|disclose)\s+(me\s+)?(your|the)\s+(system\s+)?(prompt|instructions?|rules?|configuration)/i,
+  /\boverride\b[^.]{0,40}\b(instruction|policy|safety|guardrail|restriction)/i,
+  /\bact\s+as\s+(a\s+|an\s+)?(dan|jailbreak|unrestricted|developer\s+mode)\b/i,
+  /\bimportant\s*[:!]\s*(instruction|message|note)\s+(for|to)\s+(the\s+)?(ai|assistant|agent|model)/i,
+];
+
 /** Fake roles / delimiters that try to forge the conversation structure. */
 export const AUTHORITY_SPOOF = [
   /<\/?\s*(system|assistant|user|instructions?|developer)\s*>/i,
@@ -55,6 +73,15 @@ export const SENSITIVE = [
   /\b(contents?|copy|dump)\s+of\s+(the\s+)?(memory|history|conversation|file|inbox|account|page|dom)\b/i,
 ];
 
+/**
+ * Credential-shaped field targets. The action gate uses this to refuse a `type`
+ * into a secret field even when the caller didn't set the `credential` flag —
+ * secrets must be filled via login() at the CDP layer, never keyed by the agent.
+ * Matched against a CSS selector / field identifier string.
+ */
+export const CREDENTIAL_FIELD =
+  /\b(type\s*=\s*["']?password|password|passwd|pwd|otp|one-?time-?(code|pass)|mfa|2fa|totp|cvv|cvc|ssn|social-?security|secret|api-?key|access-?token|bearer|seed-?phrase|card-?number|credit-?card)\b/i;
+
 /** Irreversible / high-authority actions the action-gate should step up on. */
 export const DANGEROUS_ACTION = [
   /\b(buy|purchase|checkout|pay|wire|transfer|send\s+money|delete|remove|drop|wipe|approve|authorize|grant\s+access|reset\s+password|disable\s+(mfa|2fa))\b/i,
@@ -66,6 +93,15 @@ export const SUSPICIOUS_SINKS = [
   /burpcollaborator/i, /interact\.sh/i, /\.glitch\.me/i, /oast\.(fun|live|site|pro|me)/i,
   /discord(app)?\.com\/api\/webhooks/i, /hookb\.in/i, /pipedream\.net/i,
 ];
+
+/**
+ * Non-http(s) URL schemes that are never legitimate page-data destinations and
+ * that hostOf() can't classify (no host). `extractUrls` only sees http(s), so a
+ * payload pointing the agent at `data:`/`javascript:`/`blob:`/`vbscript:`/`file:`
+ * would otherwise carry no recognizable sink. The trailing `[^\s]` requires the
+ * scheme to actually introduce a URL ("data:text/…") and not prose ("the data: it").
+ */
+export const SCHEME_SINK_RE = /\b(data|javascript|vbscript|blob|file):[^\s]/i;
 
 /**
  * Invisible Unicode commonly used to smuggle text past human review.
@@ -101,7 +137,13 @@ export function extractEmails(text) {
   return text.match(EMAIL_RE) || [];
 }
 export function hostOf(url) {
-  try { return new URL(url).host.toLowerCase(); } catch { return null; }
+  // hostname (NOT host) so a non-standard port never breaks the allowlist or
+  // the off-origin exfil comparison; strip a single trailing FQDN dot so
+  // "acme.example." compares equal to "acme.example".
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return h.endsWith('.') ? h.slice(0, -1) : h;
+  } catch { return null; }
 }
 
 /** Strip URLs and emails before verb-matching so a word inside a hostname or
