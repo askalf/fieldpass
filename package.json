@@ -5,15 +5,18 @@
   "type": "module",
   "main": "src/index.mjs",
   "bin": {
-    "picket": "bin/picket.mjs"
+    "picket": "bin/picket.mjs",
+    "picket-mcp": "bin/picket-mcp.mjs"
   },
   "scripts": {
     "test": "node --test",
     "demo": "node demo/run-demo.mjs",
     "demo:escalation": "node demo/escalation-demo.mjs",
+    "demo:mcp": "node demo/mcp-demo.mjs",
     "calibrate:judge": "node demo/calibrate-judge.mjs",
     "capture:live": "node demo/capture-live.mjs",
     "e2e:live": "node demo/e2e-live.mjs",
+    "mcp": "node bin/picket-mcp.mjs",
     "scan": "node bin/picket.mjs"
   },
   "keywords": [
@@ -26,7 +29,9 @@
     "ai-safety"
   ],
   "dependencies": {
-    "node-html-parser": "^6.1.13"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "node-html-parser": "^6.1.13",
+    "zod": "^3.25.0"
   },
   "optionalDependencies": {
     "@anthropic-ai/sdk": "^0.69.0",
