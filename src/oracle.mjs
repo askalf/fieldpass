@@ -16,7 +16,7 @@
  * plus a thin ReplayOracle that records goldens and runs the above.
  */
 
-import { detect } from './detect.mjs';
+import { detect, actionRank } from './detect.mjs';
 
 /** Visible, model-facing text lines (what a user/agent actually sees). */
 function visibleLines(obs) {
@@ -73,9 +73,11 @@ export function diffSnapshots(golden, current) {
   const removedText = [...g].filter((x) => x && !c.has(x));
   const verdictChanged = golden.verdict !== current.verdict;
   const trifectaAppeared = !golden.trifecta && current.trifecta;
-  const worse = ['allow', 'flag', 'quarantine', 'block'];
+  // Use the canonical action lattice (actionRank from detect.mjs) instead of a
+  // duplicated local array, so this regression check stays in lockstep with the
+  // detector if the lattice ever changes.
   const regressedToInjection =
-    trifectaAppeared || worse.indexOf(current.verdict) > worse.indexOf(golden.verdict);
+    trifectaAppeared || actionRank(current.verdict) > actionRank(golden.verdict);
   return { match: changes.length === 0, changes, addedText, removedText, verdictChanged, trifectaAppeared, regressedToInjection };
 }
 

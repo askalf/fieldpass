@@ -42,6 +42,17 @@ test('diffSnapshots flags a security regression (clean golden → injected curre
   assert.equal(d.regressedToInjection, true, 'a re-fetch that introduced an injection is caught');
 });
 
+test('diffSnapshots: a verdict escalation (no trifecta change) still counts as a regression', () => {
+  // Exercises the canonical actionRank lattice directly: golden flag → current
+  // quarantine is a regression even though trifecta did not change.
+  const base = { title: '', textHash: '', nodeCount: 0, visibleCount: 0, visibleText: '', trifecta: false };
+  const d = diffSnapshots({ ...base, verdict: 'flag' }, { ...base, verdict: 'quarantine' });
+  assert.equal(d.trifectaAppeared, false, 'no trifecta change — the verdict lattice is what catches it');
+  assert.equal(d.regressedToInjection, true);
+  // and the safe direction (quarantine → flag) is NOT a regression
+  assert.equal(diffSnapshots({ ...base, verdict: 'quarantine' }, { ...base, verdict: 'flag' }).regressedToInjection, false);
+});
+
 test('verifyClaims culls a fabricated success claim', () => {
   // agent claims: "I paid; page shows Payment successful and no failure" — but reality is BAD
   const r = verifyClaims(obs(BAD), { containsText: ['Payment successful'], absentText: ['declined'] });
