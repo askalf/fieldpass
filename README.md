@@ -5,11 +5,13 @@
 
 > An indirect-prompt-injection **firewall + action gate** that wraps a CDP
 > browser, so an agent can read untrusted web pages without being hijacked by
-> them. Part of the **Own Your Stack** agent-security suite:
-> [warden](https://github.com/askalf/warden) (actions) ·
-> [keeper](https://github.com/askalf/keeper) (secrets) ·
-> [canon](https://github.com/askalf/canon) (skills) · cordon (prompts/PII).
-> `picket` is the missing one: the **browser**.
+> them. Part of **[Own Your Stack](https://github.com/askalf)** — picket governs
+> the **browser**, and composes with the
+> [agent-security-stack](https://github.com/askalf/agent-security-stack) trilogy
+> ([warden](https://github.com/askalf/warden) actions ·
+> [canon](https://github.com/askalf/canon) skills ·
+> [keeper](https://github.com/askalf/keeper) secrets) and with
+> [cordon](https://github.com/askalf/cordon) (prompts/PII).
 
 *(Named for a guard posted at the forward boundary — the same role-noun
 convention as warden / keeper / canon. Works in front of any CDP / Chrome
