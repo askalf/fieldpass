@@ -44,7 +44,7 @@ the browser:
 | private data is reachable / exfiltrated | **keeper** (scoped leases) · **cordon** (egress redaction) |
 
 The differentiator isn't a better scraper. It's that the browser is **governed**
-by a security substrate the rest of the field doesn't have.
+by a security layer the rest of the field doesn't have.
 
 ---
 
