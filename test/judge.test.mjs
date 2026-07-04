@@ -7,7 +7,6 @@ import {
 } from '../src/judge.mjs';
 import { GovernedBrowser, resolveJudge } from '../src/govern.mjs';
 import { makeDarioBackend } from '../src/claude-judge.mjs';
-import { buildSafeObservation } from '../src/neutralize.mjs';
 
 // A polite, hidden, regex-evading injection: no "ignore instructions", no
 // parseable URL, "login details" not "password", "hand over" not "send".

@@ -19,7 +19,6 @@ console.log(bar('') + '');
 const gov = await runGoverned(html, TARGET);
 
 console.log(bar('SCORECARD'));
-const reached = gov.detection.findings.filter((f) => f.action === 'allow').length; // none should be attacker dirs
 console.log(`  naive agent:    ${naive.injections.length} attacker directive(s) reached the model  ❌`);
 console.log(`  governed agent: ${gov.safe.redactions.length} quarantined, 0 directives reached the model  ✅`);
 console.log(`  verdict:        ${gov.decision.action.toUpperCase()}  (lethal trifecta: ${gov.detection.trifecta ? 'YES' : 'no'})`);

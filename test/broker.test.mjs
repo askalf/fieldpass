@@ -65,8 +65,8 @@ test('broker: per-persona lock serializes concurrent checkouts', async () => {
 test('broker: bounded pool evicts the LRU idle context', async () => {
   const { browser, events } = fakeBrowser();
   const b = new ContextBroker({ browser, maxContexts: 2 });
-  const a = await b.checkout('a'); b.checkin('a');
-  const bb = await b.checkout('b'); b.checkin('b');
+  await b.checkout('a'); b.checkin('a');
+  await b.checkout('b'); b.checkin('b');
   assert.equal(b.stats().size, 2);
   await b.checkout('c'); // must evict the LRU idle (a)
   const st = b.stats();

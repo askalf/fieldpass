@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { captureFromHtml } from '../src/capture.mjs';
 import { GovernedBrowser, KeeperStub } from '../src/govern.mjs';
-import { SessionRecorder, toCanonSkill, replaySkill, skillHash, canonicalJson } from '../src/skill.mjs';
+import { SessionRecorder, replaySkill, skillHash, canonicalJson } from '../src/skill.mjs';
 
 const PAGES = {
   'https://acme.example/invoice': '<h1>ACME</h1><p>Invoice #4471 due July 1. Pay via your usual method.</p>',

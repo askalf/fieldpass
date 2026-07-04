@@ -4,7 +4,7 @@
  *   node demo/oracle-demo.mjs
  */
 import { captureFromHtml } from '../src/capture.mjs';
-import { ReplayOracle, verifyClaims, diffSnapshots, snapshot } from '../src/oracle.mjs';
+import { ReplayOracle, verifyClaims, snapshot } from '../src/oracle.mjs';
 
 const obs = (html) => captureFromHtml(html, { url: 'https://shop.example/checkout' });
 const bar = (s) => console.log(`\n${'─'.repeat(64)}\n${s}\n${'─'.repeat(64)}`);

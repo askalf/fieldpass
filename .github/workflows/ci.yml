@@ -17,5 +17,5 @@ jobs:
         with:
           node-version: 22
       # tests need only node-html-parser; the CDP + Claude paths are optional deps
-      - run: npm install --omit=optional --no-audit --no-fund
+      - run: npm ci --omit=optional --no-audit --no-fund
       - run: npm test
