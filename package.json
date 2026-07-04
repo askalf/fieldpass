@@ -37,7 +37,7 @@
     "zod": "^3.25.0"
   },
   "optionalDependencies": {
-    "@anthropic-ai/sdk": "^0.69.0",
+    "@anthropic-ai/sdk": "^0.110.0",
     "puppeteer-core": "^22.15.0"
   },
   "license": "MIT",
