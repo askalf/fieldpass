@@ -17,7 +17,7 @@
  * heuristicBackend below is a dependency-free stand-in for tests/demos.
  */
 
-import { actionRank, worstAction, severityToAction } from './detect.mjs';
+import { actionRank, worstAction } from './detect.mjs';
 
 /** JSON shape the judge must return (also used as the API's output schema). */
 export const VERDICTS_SCHEMA = {

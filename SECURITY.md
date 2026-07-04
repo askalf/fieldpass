@@ -13,7 +13,9 @@ Please report privately, not in a public issue:
 - Email **hello@askalf.org** with `picket security` in the subject.
 
 Include a minimal reproduction (a page/payload + the expected vs. actual verdict).
-We aim to acknowledge within a few days and will credit reporters who want it.
+We aim to acknowledge within 72 hours, keep you updated while we work on it, and
+coordinate disclosure with you — typically within 90 days of the report. We will
+credit reporters who want it.
 
 ## Scope
 
