@@ -1,6 +1,7 @@
 # picket — a governed agentic browser
 
 [![ci](https://github.com/askalf/picket/actions/workflows/ci.yml/badge.svg)](https://github.com/askalf/picket/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/askalf/picket/badge)](https://scorecard.dev/viewer/?uri=github.com/askalf/picket)
 &nbsp;·&nbsp; MIT &nbsp;·&nbsp; one runtime dependency &nbsp;·&nbsp; [why this matters →](docs/the-lethal-trifecta-in-the-browser.md)
 
 > An indirect-prompt-injection **firewall + action gate** that wraps a CDP
