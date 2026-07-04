@@ -38,7 +38,7 @@
   },
   "optionalDependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
-    "puppeteer-core": "^22.15.0"
+    "puppeteer-core": "^25.3.0"
   },
   "license": "MIT",
   "author": "Sprayberry Labs",
