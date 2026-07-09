@@ -2,6 +2,20 @@
 
 All notable changes to `@askalf/picket` are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **Streamable HTTP transport for the MCP server** — `picket-mcp --http`
+  serves `picket_observe` / `picket_gate` / `picket_login` as a URL-type MCP
+  server, so clients that can't spawn a stdio process (the Claude API MCP
+  connector, Managed Agents, remote agent runtimes) can attach. Spec session
+  management with every session sharing one governed browser (verdict cache
+  and keeper leases persist, same as stdio); binds `127.0.0.1` by default with
+  DNS-rebinding protection on loopback, optional constant-time bearer auth
+  (`PICKET_MCP_TOKEN`), and an unauthenticated `GET /healthz` liveness probe.
+  stdio stays the default transport.
+
 ## [0.2.0] — 2026-07-01
 
 The complete prototype→product roadmap since the initial release: LLM-judge

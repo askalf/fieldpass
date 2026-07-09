@@ -117,6 +117,27 @@ line; `PICKET_ALLOWLIST`/`PICKET_TASK` scope the gate and the safe view. The
 server never returns the raw text of a blocked node — only the verdict and
 finding categories — so the firewall can't be defeated through its own output.
 
+### …or over Streamable HTTP
+
+Clients that can't spawn a stdio process — the Claude API's server-side MCP
+connector, Managed Agents, remote agent runtimes — attach to the same three
+tools as a **URL-type MCP server**:
+
+```bash
+PICKET_MCP_TOKEN=$(openssl rand -hex 24) npx -y github:askalf/picket picket-mcp --http --port 7425
+# → picket MCP server ready · streamable-http http://127.0.0.1:7425/mcp · auth=bearer
+```
+
+Full MCP spec session management (`mcp-session-id`, SSE streaming, `DELETE`
+to end a session), and every session shares **one** governed browser, so the
+judge's verdict cache and keeper leases behave exactly like stdio. The HTTP
+surface holds picket's line: it binds `127.0.0.1` unless you say otherwise,
+refuses foreign `Host` headers on loopback (DNS-rebinding protection), and
+checks the bearer token in constant time — set `PICKET_MCP_TOKEN` before
+exposing it beyond localhost. `GET /healthz` is the unauthenticated liveness
+probe. Flags/env: `--port`/`PICKET_MCP_PORT`, `--host`/`PICKET_MCP_HOST`,
+`--path`/`PICKET_MCP_PATH`, `PICKET_MCP_TOKEN`.
+
 ---
 
 ## Architecture
@@ -308,6 +329,7 @@ src/
   oracle.mjs        replay verification oracle: snapshot/diff/verify (deterministic)
   skill.mjs         session recorder → canon-pinnable browser skill + replay
   mcp.mjs           MCP server: the 3 planes as picket_observe/gate/login
+  mcp-http.mjs      Streamable HTTP transport: sessions, bearer auth, rebinding guard
   index.mjs         barrel
 demo/
   booby-trapped.html   8 payloads + 2 benign controls
@@ -320,8 +342,8 @@ demo/
   oracle-demo.mjs      cull an agent's browser fabrications, deterministically
   skill-demo.mjs       record a session → canon-pinnable skill → deterministic replay
 bin/picket.mjs         CLI (scan, --json, --safe, CI exit codes)
-bin/picket-mcp.mjs     MCP server (stdio) entrypoint
-test/                  detector/gate/judge/cache/mcp/broker/oracle/skill — 64 tests, no browser
+bin/picket-mcp.mjs     MCP server entrypoint (stdio default, --http for Streamable HTTP)
+test/                  detector/gate/judge/cache/mcp/http/broker/oracle/skill — 87 tests, no browser
 ```
 
 MIT.
