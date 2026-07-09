@@ -1,0 +1,3 @@
+# CrewAI Flow + MCP client (the `mcp` client library rides in with crewai).
+#   pip install -r requirements.txt
+crewai==1.15.1

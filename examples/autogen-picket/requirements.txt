@@ -1,0 +1,5 @@
+# Microsoft AutoGen (v0.4+ architecture) + its first-party MCP tool integration.
+#   pip install -r requirements.txt
+# autogen-ext[mcp] pulls AutoGen's McpWorkbench and the `mcp` client library.
+autogen-agentchat==0.7.5
+autogen-ext[mcp]==0.7.5

@@ -138,6 +138,20 @@ exposing it beyond localhost. `GET /healthz` is the unauthenticated liveness
 probe. Flags/env: `--port`/`PICKET_MCP_PORT`, `--host`/`PICKET_MCP_HOST`,
 `--path`/`PICKET_MCP_PATH`, `PICKET_MCP_TOKEN`.
 
+### Works with your agent framework
+
+Runnable, offline, no-API-key examples of real framework engines browsing
+behind the firewall — each reads a booby-trapped invoice page, has the
+injection withheld, and has every hijack action refused at the gate, with
+captured evidence from real runs:
+
+| framework | example |
+|-----------|---------|
+| **LangGraph.js** — `@langchain/langgraph` StateGraph | [`examples/langgraph-picket`](examples/langgraph-picket) |
+| **OpenAI Agents SDK** — scripted offline model | [`examples/openai-agents-picket`](examples/openai-agents-picket) |
+| **CrewAI** — Flow (Python) | [`examples/crewai-picket`](examples/crewai-picket) |
+| **Microsoft AutoGen** (Python) | [`examples/autogen-picket`](examples/autogen-picket) |
+
 ---
 
 ## Architecture
@@ -344,6 +358,7 @@ demo/
 bin/picket.mjs         CLI (scan, --json, --safe, CI exit codes)
 bin/picket-mcp.mjs     MCP server entrypoint (stdio default, --http for Streamable HTTP)
 test/                  detector/gate/judge/cache/mcp/http/broker/oracle/skill — 87 tests, no browser
+examples/              LangGraph.js · OpenAI Agents SDK · CrewAI · AutoGen, each browsing behind picket
 ```
 
 MIT.
