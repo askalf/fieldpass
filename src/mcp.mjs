@@ -41,11 +41,14 @@ async function bridgeEndpoint(base) {
  * @param {*}        [opts.judge]      "dario" | "claude" | an LLMJudge | null (also PICKET_JUDGE)
  * @param {string}   [opts.cdp]        CDP base for live URL fetches (also PICKET_CDP)
  * @param {*}        [opts.keeper]     KeeperStub (or real keeper) for login()
+ * @param {GovernedBrowser} [opts.picket]  share an existing browser instead of
+ *   building one — the HTTP transport passes one browser to every session so
+ *   the verdict cache and keeper leases stay shared.
  * @param {string}   [opts.version]
  */
 export function createPicketServer(opts = {}) {
   const cdp = opts.cdp ?? process.env.PICKET_CDP ?? null;
-  const picket = new GovernedBrowser({
+  const picket = opts.picket ?? new GovernedBrowser({
     allowlist: opts.allowlist,
     task: opts.task,
     judge: opts.judge,
