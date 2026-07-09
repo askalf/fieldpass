@@ -15,6 +15,15 @@ All notable changes to `@askalf/picket` are documented here.
   DNS-rebinding protection on loopback, optional constant-time bearer auth
   (`PICKET_MCP_TOKEN`), and an unauthenticated `GET /healthz` liveness probe.
   stdio stays the default transport.
+- **Framework example series** — four runnable, offline, no-API-key examples
+  of real agent-framework engines browsing behind the firewall via
+  `picket-mcp`: LangGraph.js (`StateGraph`), OpenAI Agents SDK (scripted
+  offline model through the genuine `Runner`), CrewAI (`Flow`), and Microsoft
+  AutoGen (`AssistantAgent` + `McpWorkbench`). Each reads a booby-trapped
+  invoice page, proves the injection is withheld while benign content
+  survives, has every hijack action refused at the gate, and shows login
+  failing closed with no vault — with captured evidence and pinned versions
+  from real runs in each example's `evidence/`.
 
 ## [0.2.0] — 2026-07-01
 
