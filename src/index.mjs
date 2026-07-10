@@ -1,5 +1,5 @@
 /**
- * @askalf/picket — a governed agentic browser.
+ * @askalf/fieldpass — a governed agentic browser.
  *
  * An indirect-prompt-injection firewall + action gate that wraps a CDP browser
  * so agents can read untrusted web pages without being hijacked by them.

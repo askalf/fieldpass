@@ -1,10 +1,12 @@
 {
-  "name": "@askalf/picket",
-  "version": "0.2.0",
+  "name": "@askalf/fieldpass",
+  "version": "0.2.1",
   "description": "Governed agentic browser — an indirect-prompt-injection firewall and action gate that wraps a CDP browser so agents can read untrusted web pages safely. Part of the Own Your Stack agent-security suite (warden · keeper · canon · cordon).",
   "type": "module",
   "main": "src/index.mjs",
   "bin": {
+    "fieldpass": "bin/picket.mjs",
+    "fieldpass-mcp": "bin/picket-mcp.mjs",
     "picket": "bin/picket.mjs",
     "picket-mcp": "bin/picket-mcp.mjs"
   },
@@ -42,13 +44,13 @@
   },
   "license": "MIT",
   "author": "Sprayberry Labs",
-  "homepage": "https://github.com/askalf/picket#readme",
+  "homepage": "https://github.com/askalf/fieldpass#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/askalf/picket.git"
+    "url": "git+https://github.com/askalf/fieldpass.git"
   },
   "bugs": {
-    "url": "https://github.com/askalf/picket/issues"
+    "url": "https://github.com/askalf/fieldpass/issues"
   },
   "engines": {
     "node": ">=20"
