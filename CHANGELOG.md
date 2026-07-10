@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- **Renamed: `@askalf/picket` → `@askalf/fieldpass`** (npm-publishable name; `picket` is squatted unscoped and the registry create-policy blocks colliding scoped names). GitHub repo becomes `askalf/fieldpass` (old URLs redirect). Legacy `picket`/`picket-mcp` bin aliases retained; MCP tool names and `PICKET_*` env vars unchanged.
+
 All notable changes to `@askalf/picket` are documented here.
 
 ## [Unreleased]
