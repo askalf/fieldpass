@@ -13,13 +13,13 @@
 > them. Part of **[Own Your Stack](https://github.com/askalf)** — fieldpass governs
 > the **browser**, and composes with the
 > [agent-security-stack](https://github.com/askalf/agent-security-stack) trilogy
-> ([warden](https://github.com/askalf/warden) actions ·
-> [canon](https://github.com/askalf/canon) skills ·
-> [keeper](https://github.com/askalf/keeper) secrets) and with
+> ([redstamp](https://github.com/askalf/redstamp) actions ·
+> [truecopy](https://github.com/askalf/truecopy) skills ·
+> [strongroom](https://github.com/askalf/strongroom) secrets) and with
 > [cordon](https://github.com/askalf/cordon) (prompts/PII).
 
 *(Named for a guard posted at the forward boundary — the same role-noun
-convention as warden / keeper / canon. Works in front of any CDP / Chrome
+convention as redstamp / strongroom / truecopy. Works in front of any CDP / Chrome
 DevTools browser.)*
 
 ---
@@ -45,8 +45,8 @@ the browser:
 | leg of the trifecta | who guards it |
 |---|---|
 | untrusted content reaches the agent | **fieldpass** (this) — perception firewall |
-| agent takes a dangerous action | **fieldpass** action gate → **warden** |
-| private data is reachable / exfiltrated | **keeper** (scoped leases) · **cordon** (egress redaction) |
+| agent takes a dangerous action | **fieldpass** action gate → **redstamp** |
+| private data is reachable / exfiltrated | **strongroom** (scoped leases) · **cordon** (egress redaction) |
 
 The differentiator isn't a better scraper. It's that the browser is **governed**
 by a security layer the rest of the field doesn't have.
@@ -62,7 +62,7 @@ npm run demo           # the pwn-vs-governed showcase + writes demo/REPORT.md
 npm run demo:escalation  # deterministic miss → LLM-judge catch
 npm run demo:mcp         # drive the governed browser over the MCP protocol
 npm run demo:oracle      # cull an agent's browser fabrications, deterministically
-npm run demo:skill       # record a session → canon-pinnable skill → replay
+npm run demo:skill       # record a session → truecopy-pinnable skill → replay
 npx -y github:askalf/fieldpass scan demo/booby-trapped.html --safe   # CLI; exit 0 allow · 1 quarantine · 2 block
 ```
 
@@ -81,7 +81,7 @@ verdict         BLOCK   (lethal trifecta: YES)
 
 The governed run also exercises the **action gate** (off-allowlist navigation
 denied, "approve the wire transfer" stepped up, credential typing refused) and a
-**keeper-backed login** that returns an opaque lease — the secret never enters
+**strongroom-backed login** that returns an opaque lease — the secret never enters
 the agent's context.
 
 ---
@@ -100,7 +100,7 @@ or your own agent runtime — gets a firewalled browser as nine tools:
 | `picket_snapshot` | verification | records a named **golden** fingerprint of a known-good page (hash + verdict + structure; no raw body in the reply) |
 | `picket_replay` | verification | re-captures a page and diffs it against a golden; headline `regressedToInjection` flags a page that was clean and now trips the firewall (tamper / supply-chain) |
 | `picket_record_start` | skill | begins a named recording; add `record: "<name>"` to `observe`/`gate`/`login` to append steps (secrets + withheld payloads never recorded) |
-| `picket_skill_emit` | skill | serializes a recording into a **canon-pinnable manifest** (with `skillHash`); goldens are reduced to fingerprints — no raw page text or secrets |
+| `picket_skill_emit` | skill | serializes a recording into a **truecopy-pinnable manifest** (with `skillHash`); goldens are reduced to fingerprints — no raw page text or secrets |
 | `picket_skill_replay` | skill | re-runs a recording (or a manifest) against the live browser, reporting drift and `regressedToInjection` per step |
 
 The verification tools back onto the deterministic replay oracle
@@ -108,7 +108,7 @@ The verification tools back onto the deterministic replay oracle
 governed browser, never against agent-supplied text, and — like `picket_observe`
 — never echo a withheld injection excerpt (a regressed payload is filtered out
 of the replay diff too). The skill tools (`src/skill.mjs`) record a governed
-session into a manifest **canon** can scan / pin / sign / verify; because the
+session into a manifest **truecopy** can scan / pin / sign / verify; because the
 manifest crosses back to the agent, `picket_skill_emit` redacts recorded page
 text (an observe step read through the safe view never showed you a withheld
 payload, and the manifest can't recover it) while keeping the per-step `verdict`
@@ -153,7 +153,7 @@ PICKET_MCP_TOKEN=$(openssl rand -hex 24) npx -y github:askalf/fieldpass fieldpas
 
 Full MCP spec session management (`mcp-session-id`, SSE streaming, `DELETE`
 to end a session), and every session shares **one** governed browser, so the
-judge's verdict cache and keeper leases behave exactly like stdio. The HTTP
+judge's verdict cache and strongroom leases behave exactly like stdio. The HTTP
 surface holds fieldpass's line: it binds `127.0.0.1` unless you say otherwise,
 refuses foreign `Host` headers on loopback (DNS-rebinding protection), and
 checks the bearer token in constant time — set `PICKET_MCP_TOKEN` before
@@ -189,9 +189,9 @@ never to Chrome directly.
         │  observe ─┼─────────────────────────────────────────────────────▶ │       │   :9222 endpoint
         │ ◀─ safe ──┼─ quarantined, provenance-fenced data only ◀────────────┘       │        │
         │           │                                                                │        │
-        │   act  ───┼─▶ ACTION gate ─▶ allowlist + step-up ─▶ warden ─▶ (allow/deny) ┼──▶ click/type/nav
+        │   act  ───┼─▶ ACTION gate ─▶ allowlist+step-up ─▶ redstamp ─▶ (allow/deny) ┼──▶ click/type/nav
         │           │                                                                │        │
-        │  login ───┼─▶ IDENTITY ─▶ keeper lease ─▶ CDP-layer fill (no secret to LLM)┼──▶ fill field
+        │  login ───┼─▶ IDENTITY ─▶ strongroom lease ─▶CDP-layer fill (no secret→LLM)┼──▶ fill field
         │           └────────────────────────────────────────────────────────────────┘
         └─ audit log (every plane decision is recorded)
 ```
@@ -235,9 +235,9 @@ never to Chrome directly.
   sensitive-data **+** exfil co-located → `block`.
 
 - **Policy** (`src/policy.mjs`) computes a local verdict, then hands it to
-  **warden** for the final say. Fail-safe by contract: warden may only *escalate*,
+  **redstamp** for the final say. Fail-safe by contract: redstamp may only *escalate*,
   never soften, and any transport error leaves the local verdict standing. No
-  warden wired (no `WARDEN_URL`) → `LocalPolicy` enforces on its own.
+  redstamp wired (no `WARDEN_URL`) → `LocalPolicy` enforces on its own.
 
 - **LLM-judge escalation** (`src/judge.mjs` + `src/claude-judge.mjs`) is the
   second line. The regex layer is conservative on *novel phrasing* — a polite,
@@ -285,14 +285,14 @@ Every outbound action passes `GovernedBrowser.gate()` before it touches the page
 navigation is allowlist-checked; high-authority verbs (`buy`, `wire`, `approve`,
 `delete`, `reset password`) step up for approval; typing into a credential field
 is refused outright (credentials only arrive via the identity plane). The same
-decision is forwarded to warden when wired.
+decision is forwarded to redstamp when wired.
 
-### 3. Identity plane — keeper-backed credentials
+### 3. Identity plane — strongroom-backed credentials
 
-`login(persona)` leases a credential from **keeper** and fills it at the **CDP
+`login(persona)` leases a credential from **strongroom** and fills it at the **CDP
 layer**. The agent receives an opaque lease handle — the secret never enters the
 agent's context, its script, or any log. (Prototype ships a `KeeperStub`; the
-seam is the real `@askalf/keeper` client.)
+seam is the real `@askalf/strongroom` client.)
 
 ---
 
@@ -319,7 +319,7 @@ seam is the real `@askalf/keeper` client.)
   exposes no `.shadowRoot` handle and is genuinely unreachable, and an
   **un-upgraded plain `<template>`** (no `shadowrootmode`) is treated as inert —
   both pinned by tests in `test/capture-shadow.test.mjs`.
-- **fieldpass is not "don't give agents secrets."** It reduces blast radius; keeper
+- **fieldpass is not "don't give agents secrets."** It reduces blast radius; strongroom
   (least privilege) and cordon (egress redaction) are the other half. Defense in
   depth, not a single silver bullet.
 - The action gate's danger list and the allowlist are policy you tune per
@@ -329,7 +329,7 @@ seam is the real `@askalf/keeper` client.)
 
 ## Roadmap (prototype → product)
 
-All five shipped — the prototype is now a layered product: deterministic firewall → LLM-judge → MCP surface → pooled persona sessions → replay verification → canon-pinned skills.
+All five shipped — the prototype is now a layered product: deterministic firewall → LLM-judge → MCP surface → pooled persona sessions → replay verification → truecopy-pinned skills.
 
 1. ~~**LLM-judge escalation**~~ — **done** (`src/judge.mjs`): ambiguous residue
    routes to a `claude-haiku-4-5` verdict; the deterministic fast path keeps the
@@ -339,19 +339,19 @@ All five shipped — the prototype is now a layered product: deterministic firew
    five planes for any MCP client — `picket_observe`/`picket_gate`/`picket_login`,
    the oracle (`picket_verify`/`picket_snapshot`/`picket_replay`), and the skill
    recorder (`picket_record_start` + `record:"<name>"` → `picket_skill_emit`/
-   `picket_skill_replay`). (Next: canon-scan the server itself.)
+   `picket_skill_replay`). (Next: truecopy-scan the server itself.)
 3. ~~**Live context-broker**~~ — **done** (`src/broker.mjs`): a pool of isolated,
-   keeper-backed persona contexts (`checkout`/`checkin`) on one shared Chrome —
+   strongroom-backed persona contexts (`checkout`/`checkin`) on one shared Chrome —
    per-persona session that's logged-in once and reused, a per-persona lock so
    concurrent agents never share a session, LRU eviction, and a non-destructive
    `close()` (disconnect, never `browser.close()`). `captureFromBridge({ page })`
    reads a checked-out authenticated session through the firewall.
-4. ~~**Session → canon skill**~~ — **done** (`src/skill.mjs`): `SessionRecorder`
+4. ~~**Session → truecopy skill**~~ — **done** (`src/skill.mjs`): `SessionRecorder`
    records a governed session (observes + gates + logins, secrets redacted),
-   `toCanonSkill` emits a JSON manifest that **canon loads as a skill** — `canon
-   scan`/`pin`/`sign`/`verify` work on it unchanged (proven: canon flags a session
+   `toCanonSkill` emits a JSON manifest that **truecopy loads as a skill** — `truecopy
+   scan`/`pin`/`sign`/`verify` work on it unchanged (proven: truecopy flags a session
    that recorded a hostile page). `replaySkill` re-runs it deterministically via
-   the oracle. `skillHash` matches canon's pin hash. The browser, in the supply chain.
+   the oracle. `skillHash` matches truecopy's pin hash. The browser, in the supply chain.
 5. ~~**Replay verification oracle**~~ — **done** (`src/oracle.mjs`): a
    DETERMINISTIC gate (no LLM — a model asked "did it work?" confabulates "yes")
    that culls an agent's "I did it / the page now shows X" browser fabrications.
@@ -376,9 +376,9 @@ src/
   neutralize.mjs    Observation + Detection → safe, model-facing view
   policy.mjs        LocalPolicy + WardenClient (fail-safe escalation)
   govern.mjs        GovernedBrowser: the 3 planes + KeeperStub
-  broker.mjs        ContextBroker: pool of keeper-backed persona contexts
+  broker.mjs        ContextBroker: pool of strongroom-backed persona contexts
   oracle.mjs        replay verification oracle: snapshot/diff/verify (deterministic)
-  skill.mjs         session recorder → canon-pinnable browser skill + replay
+  skill.mjs         session recorder → truecopy-pinnable browser skill + replay
   mcp.mjs           MCP server: observe/gate/login + verify/snapshot/replay
   mcp-http.mjs      Streamable HTTP transport: sessions, bearer auth, rebinding guard
   index.mjs         barrel
@@ -391,7 +391,7 @@ demo/
   mcp-demo.mjs         drive the governed browser over the MCP protocol
   broker-demo.mjs      a pool of isolated persona contexts on one shared Chrome
   oracle-demo.mjs      cull an agent's browser fabrications, deterministically
-  skill-demo.mjs       record a session → canon-pinnable skill → deterministic replay
+  skill-demo.mjs       record a session → truecopy-pinnable skill → deterministic replay
 bin/fieldpass.mjs         CLI (scan, --json, --safe, CI exit codes)
 bin/fieldpass-mcp.mjs     MCP server entrypoint (stdio default, --http for Streamable HTTP)
 test/                  detector/gate/judge/cache/mcp/http/broker/oracle/skill — 87 tests, no browser
