@@ -13,6 +13,9 @@
  *
  * Security posture (this is a security tool; the HTTP surface holds the line):
  *   - binds 127.0.0.1 by default — exposing it is an explicit choice
+ *   - REFUSES a non-loopback bind without a bearer token (that would be an open,
+ *     unauthenticated governed browser); override with allowInsecure /
+ *     PICKET_MCP_ALLOW_INSECURE=1 only when fronted by other auth
  *   - DNS-rebinding protection on loopback binds (Host-header allowlist)
  *   - optional bearer token (PICKET_MCP_TOKEN) checked in constant time;
  *     set one whenever the server is reachable beyond localhost
@@ -60,6 +63,21 @@ export async function startPicketHttpServer(opts = {}) {
   const path = opts.path ?? process.env.PICKET_MCP_PATH ?? '/mcp';
   const token = opts.token ?? process.env.PICKET_MCP_TOKEN ?? null;
   const port = opts.port ?? (process.env.PICKET_MCP_PORT ? Number(process.env.PICKET_MCP_PORT) : 7425);
+
+  // Fail safe on exposure: a non-loopback bind reaches the network, where the
+  // loopback-only DNS-rebinding guard no longer applies. Without a bearer token
+  // that would be an OPEN, unauthenticated governed browser. Refuse it unless the
+  // operator sets a token (recommended) or explicitly opts out (they front it
+  // with their own auth). This is a security tool; it should not hand out an
+  // unauthenticated remote surface by omission.
+  const allowInsecure = opts.allowInsecure ?? process.env.PICKET_MCP_ALLOW_INSECURE === '1';
+  if (!LOOPBACK.has(host) && !token && !allowInsecure) {
+    throw new Error(
+      `picket-mcp refuses to bind a non-loopback address (${host}) without a bearer token. ` +
+      `Set PICKET_MCP_TOKEN (recommended), or pass allowInsecure:true / PICKET_MCP_ALLOW_INSECURE=1 ` +
+      `to override when the endpoint is protected by other means.`,
+    );
+  }
 
   // One governed browser behind every session (see module doc).
   const picket = opts.picket ?? new GovernedBrowser({

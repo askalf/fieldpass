@@ -46,6 +46,14 @@ All notable changes to `@askalf/picket` are documented here.
 
 ### Security
 
+- **The HTTP transport refuses an unauthenticated non-loopback bind (audit
+  follow-up).** `startPicketHttpServer` now throws if asked to bind a
+  non-loopback address without a bearer token — that configuration would have
+  been an open, unauthenticated governed browser, and the loopback-only
+  DNS-rebinding guard doesn't apply off-loopback. Set `PICKET_MCP_TOKEN`
+  (recommended), or pass `allowInsecure: true` / `PICKET_MCP_ALLOW_INSECURE=1` to
+  override when the endpoint is fronted by other auth. The default loopback bind
+  is unaffected.
 - **Hardened the Unicode confusable fold (audit follow-up).** Two weaknesses in
   the fold added for the confusables bypass fix: (1) the `CONFUSABLES` map was a
   narrow Cyrillic/Greek set, so a Latin/IPA look-alike with no NFKC
