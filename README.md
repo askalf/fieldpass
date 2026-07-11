@@ -4,7 +4,9 @@
 
 [![ci](https://github.com/askalf/fieldpass/actions/workflows/ci.yml/badge.svg)](https://github.com/askalf/fieldpass/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/askalf/fieldpass/badge)](https://scorecard.dev/viewer/?uri=github.com/askalf/fieldpass)
-&nbsp;·&nbsp; MIT &nbsp;·&nbsp; one runtime dependency &nbsp;·&nbsp; [why this matters →](docs/the-lethal-trifecta-in-the-browser.md)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![runtime deps](https://img.shields.io/badge/runtime%20deps-3-brightgreen)](package.json)
+[![why this matters](https://img.shields.io/badge/why%20this%20matters-the%20lethal%20trifecta-8a2be2)](docs/the-lethal-trifecta-in-the-browser.md)
 
 > An indirect-prompt-injection **firewall + action gate** that wraps a CDP
 > browser, so an agent can read untrusted web pages without being hijacked by
