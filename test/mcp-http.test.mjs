@@ -199,3 +199,22 @@ test('mcp-http: DNS-rebinding protection — a foreign Host header is refused on
     await srv.close();
   }
 });
+
+test('mcp-http: refuses a non-loopback bind without a token (audit hardening)', async () => {
+  // an open, unauthenticated remote governed browser must not be handed out by omission
+  await assert.rejects(
+    startPicketHttpServer({ host: '0.0.0.0', port: 0 }),
+    /non-loopback|bearer token/i,
+  );
+  // ...but a token makes it allowed
+  const withToken = await startPicketHttpServer({ host: '0.0.0.0', port: 0, token: 'sesame-3000' });
+  try { assert.ok(withToken.port > 0); } finally { await withToken.close(); }
+  // ...and so does an explicit opt-out (operator fronts it with other auth)
+  const insecure = await startPicketHttpServer({ host: '0.0.0.0', port: 0, allowInsecure: true });
+  try { assert.ok(insecure.port > 0); } finally { await insecure.close(); }
+});
+
+test('mcp-http: a loopback bind without a token is still allowed (guard is exposure-only)', async () => {
+  const srv = await startPicketHttpServer({ host: '127.0.0.1', port: 0 });
+  try { assert.ok(srv.port > 0); } finally { await srv.close(); }
+});
