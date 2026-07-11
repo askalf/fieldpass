@@ -122,9 +122,23 @@ export function verifyClaims(obs, claims = {}) {
 
 /** Records goldens by name and runs replay/verify against them. */
 export class ReplayOracle {
-  constructor() { this.goldens = new Map(); }
+  /** @param {{maxGoldens?: number}} [opts] bound the store so an untrusted
+   *  caller (e.g. an MCP client) can't grow it without limit; oldest evicted. */
+  constructor(opts = {}) {
+    this.goldens = new Map();
+    this.max = opts.maxGoldens ?? 256;
+  }
   /** Capture a known-good state as the golden for `name`. */
-  record(name, obs) { const s = snapshot(obs); this.goldens.set(name, s); return s; }
+  record(name, obs) {
+    const s = snapshot(obs);
+    // Evict the oldest golden when a NEW name would exceed the bound (Map keeps
+    // insertion order); re-recording an existing name just overwrites in place.
+    if (!this.goldens.has(name) && this.goldens.size >= this.max) {
+      this.goldens.delete(this.goldens.keys().next().value);
+    }
+    this.goldens.set(name, s);
+    return s;
+  }
   has(name) { return this.goldens.has(name); }
   /** Re-run: diff a fresh observation against the recorded golden. */
   replay(name, obs) {

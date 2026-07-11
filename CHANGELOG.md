@@ -10,6 +10,21 @@ All notable changes to `@askalf/picket` are documented here.
 
 ### Added
 
+- **Replay-verification oracle over MCP** — the deterministic anti-fabrication
+  gate (`src/oracle.mjs`) is now reachable from any MCP client, not just as a JS
+  import: three new tools on `createPicketServer`. `picket_verify` re-captures
+  the real page through the governed browser and checks the caller's
+  `containsText`/`absentText`/`verdict`/`golden` claims against it with no LLM in
+  the path, culling "the page now shows X" confabulations. `picket_snapshot`
+  records a named golden fingerprint (hash + verdict + structure — no raw body in
+  the reply); `picket_replay` diffs a re-capture against it, with
+  `regressedToInjection` flagging a page that was clean and now trips the
+  firewall. The golden store lives on the shared `GovernedBrowser` (persists
+  across HTTP sessions, same lifetime as the verdict cache and keeper leases) and
+  is bounded. None of the new tools ever echo a withheld injection excerpt — a
+  regressed payload is filtered out of the replay diff too. The
+  session-recorder / canon-skill plane (`src/skill.mjs`) remains a separate MCP
+  surface gap, tracked as a follow-up. (#26)
 - **Streamable HTTP transport for the MCP server** — `picket-mcp --http`
   serves `picket_observe` / `picket_gate` / `picket_login` as a URL-type MCP
   server, so clients that can't spawn a stdio process (the Claude API MCP
