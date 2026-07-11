@@ -287,6 +287,17 @@ seam is the real `@askalf/keeper` client.)
 - **Static capture can't see CSS-class hiding.** Inline styles, attributes and
   comments it gets; class-based `display:none` needs computed styles. That gap is
   exactly why the CDP backend exists and is the production path.
+- **Shadow DOM / declarative templates / pseudo-elements live only in a real DOM.**
+  The live CDP walk descends **open** shadow roots (tagging their nodes
+  `source: 'shadow'`, with the host's visibility inherited — a `display:none`
+  host hides its shadow subtree) and reads CSS `::before`/`::after` `content`
+  (`source: 'pseudo'`), so an injection planted in a web component or generated
+  content is caught, not silently dropped. The static backend upgrades a
+  declarative `<template shadowrootmode>` the same way so the offline corpus can
+  carry a fixture. Two edges remain, by construction: a **closed** shadow root
+  exposes no `.shadowRoot` handle and is genuinely unreachable, and an
+  **un-upgraded plain `<template>`** (no `shadowrootmode`) is treated as inert —
+  both pinned by tests in `test/capture-shadow.test.mjs`.
 - **fieldpass is not "don't give agents secrets."** It reduces blast radius; keeper
   (least privilege) and cordon (egress redaction) are the other half. Defense in
   depth, not a single silver bullet.

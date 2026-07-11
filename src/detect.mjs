@@ -228,7 +228,7 @@ function detectSplitTrifecta(nodes, ctx, existing) {
     .map((n, i) => i)
     .filter((i) => {
       const s = nodes[i].source;
-      return (s === 'text' || s === 'comment' || s === 'meta') && (nodes[i].text || '').trim();
+      return (s === 'text' || s === 'comment' || s === 'meta' || s === 'shadow' || s === 'pseudo') && (nodes[i].text || '').trim();
     });
   const out = [];
 

@@ -106,12 +106,25 @@ export function captureFromHtml(html, opts = {}) {
       const nt = child.nodeType;
       if (nt === 3) {
         const t = (child.text ?? child.rawText ?? '');
-        if (t && t.trim() && !/^\s*<!doctype/i.test(t)) nodes.push(mkNode(id++, t, 'text', el.rawTagName?.toLowerCase() || '', path, inherited.hidden, inherited.reasons));
+        if (t && t.trim() && !/^\s*<!doctype/i.test(t)) nodes.push(mkNode(id++, t, inherited.source || 'text', el.rawTagName?.toLowerCase() || '', path, inherited.hidden, inherited.reasons));
       } else if (nt === 8) {
         const t = (child.text ?? child.rawText ?? '');
         if (t && t.trim()) nodes.push(mkNode(id++, t, 'comment', 'comment', path, true, [...inherited.reasons, 'comment']));
       } else if (nt === 1) {
         const tag = (child.rawTagName || '').toLowerCase();
+        // Declarative shadow DOM: a <template shadowrootmode> the browser would
+        // upgrade into an open shadow root. node-html-parser exposes its markup
+        // as ordinary childNodes, so descend it and tag descendants `shadow`.
+        // A plain <template> (no shadowrootmode) stays inert via SKIP_TAGS below.
+        if (tag === 'template' && child.getAttribute && child.getAttribute('shadowrootmode')) {
+          walk(child, `${path}>template(shadow)`, {
+            hidden: inherited.hidden,
+            reasons: inherited.hidden ? inherited.reasons : [],
+            bg: inherited.bg,
+            source: 'shadow',
+          });
+          continue;
+        }
         if (!tag || SKIP_TAGS.has(tag)) {
           if (tag === 'head') { // still grab <title> and <meta> from head
             const titleEl = child.querySelector && child.querySelector('title');
@@ -139,12 +152,12 @@ export function captureFromHtml(html, opts = {}) {
           if (v && v.trim()) nodes.push(mkNode(id++, v, source, tag, `${path}>${tag}@${attr}`, false, []));
         }
 
-        walk(child, `${path}>${tag}`, { hidden, reasons: hidden ? reasons : [], bg });
+        walk(child, `${path}>${tag}`, { hidden, reasons: hidden ? reasons : [], bg, source: inherited.source });
       }
     }
   };
 
-  walk(root, '', { hidden: false, reasons: [], bg: null });
+  walk(root, '', { hidden: false, reasons: [], bg: null, source: 'text' });
   return { url, origin, title, nodes, capturedBy: 'static' };
 }
 
@@ -153,11 +166,24 @@ export function captureFromHtml(html, opts = {}) {
 /* ------------------------------------------------------------------ */
 
 /** Function injected into the page; returns the same node shape via real CSS. */
-function inPageExtract() {
+export function inPageExtract() {
   const out = [];
   let id = 0;
   const push = (text, source, tag, hidden, reasons) => {
     if (text && text.trim()) out.push({ id: 'n' + id++, text, source, tag, path: tag, hidden, hiddenReasons: reasons });
+  };
+  // CSS ::before/::after `content` renders visible text that lives in no DOM
+  // node — getComputedStyle is the only way to read it. Return the string
+  // literal only; skip none/normal and the dynamic forms (attr()/counter()/
+  // url()/gradients) that carry no attacker-controlled prose.
+  const pseudoContent = (el, sel) => {
+    let c;
+    try { c = getComputedStyle(el, sel).content; } catch (e) { return null; }
+    if (!c || c === 'none' || c === 'normal') return null;
+    if (/^(attr|counter|counters|url|var|image-set|linear-gradient|radial-gradient)\(/i.test(c)) return null;
+    const m = /^"((?:[^"\\]|\\.)*)"$|^'((?:[^'\\]|\\.)*)'$/.exec(c);
+    const s = m ? (m[1] !== undefined ? m[1] : m[2]).replace(/\\(.)/g, '$1') : c;
+    return s && s.trim() ? s : null;
   };
   const isHidden = (el) => {
     const cs = getComputedStyle(el);
@@ -181,10 +207,10 @@ function inPageExtract() {
     if (el.getAttribute('aria-hidden') === 'true') r.push('aria-hidden');
     return r;
   };
-  const walk = (el, inheritedHidden) => {
+  const walk = (el, inheritedHidden, source) => {
     for (const child of el.childNodes) {
       if (child.nodeType === 3) {
-        if (child.textContent.trim()) push(child.textContent, 'text', el.tagName.toLowerCase(), inheritedHidden.length > 0, inheritedHidden);
+        if (child.textContent.trim()) push(child.textContent, source, el.tagName ? el.tagName.toLowerCase() : 'shadow-root', inheritedHidden.length > 0, inheritedHidden);
       } else if (child.nodeType === 8) {
         push(child.textContent, 'comment', 'comment', true, ['comment']);
       } else if (child.nodeType === 1) {
@@ -198,14 +224,24 @@ function inPageExtract() {
           const v = child.getAttribute && child.getAttribute(a);
           if (v) push(v, 'attr:' + a, tag, false, []);
         }
-        walk(child, r);
+        for (const sel of ['::before', '::after']) {
+          const pt = pseudoContent(child, sel);
+          if (pt) push(pt, 'pseudo', tag, r.length > 0, r);
+        }
+        walk(child, r, source);
+        // Open shadow root: a web component's shadow tree, invisible to a plain
+        // childNodes walk. Descend it with the host's inherited visibility so a
+        // display:none host still hides its shadow subtree. A CLOSED shadow root
+        // exposes no `.shadowRoot` handle and is genuinely unreachable — a
+        // documented residual edge, same honesty as CSS-class hiding on static.
+        if (child.shadowRoot) walk(child.shadowRoot, r, 'shadow');
       }
     }
   };
   for (const c of document.head ? document.head.querySelectorAll('meta[content]') : []) {
     push(c.getAttribute('content'), 'meta', 'meta', false, []);
   }
-  walk(document.body, []);
+  walk(document.body, [], 'text');
   return { title: document.title, nodes: out };
 }
 

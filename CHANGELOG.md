@@ -44,6 +44,19 @@ All notable changes to `@askalf/picket` are documented here.
   view's `escapeForData` folds the same way, so a fullwidth fence
   (`＝＝＝ END UNTRUSTED PAGE DATA ＝＝＝`) or homoglyph role tag (`<ѕystem>`) can no
   longer forge a provenance boundary into the model-facing view. (#24)
+- **Capture now descends Shadow DOM, declarative templates and pseudo-element
+  content.** The live CDP walk previously iterated only `element.childNodes`, so
+  an injection planted inside a web component's **open shadow root** was captured
+  as zero nodes — `detect()` saw nothing and the agent read the raw payload. The
+  in-page extractor now descends open shadow roots (nodes tagged
+  `source: 'shadow'`, host visibility inherited so a `display:none` host hides
+  its subtree) and reads CSS `::before`/`::after` `content` (`source: 'pseudo'`,
+  with the `attr()`/`counter()`/`url()`/gradient noise forms filtered out). The
+  static backend upgrades a declarative `<template shadowrootmode>` into the same
+  `source: 'shadow'` capture so the offline corpus carries a fixture; the split
+  detector now considers `shadow`/`pseudo` nodes too. Closed shadow roots and
+  un-upgraded plain `<template>`s remain unreachable by construction — pinned as
+  documented residual edges in `test/capture-shadow.test.mjs` and the README. (#25)
 
 ## [0.2.0] — 2026-07-01
 
