@@ -4,6 +4,19 @@ All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-07-11
+
+### Changed
+
+- **README badge row** — the license, dependency, and "why this matters" items
+  in the header were plain text trailing the two SVG badges; they're now flat
+  shields.io badges matching the `ci` and OpenSSF Scorecard style, so the header
+  renders as one consistent badge row on npm and GitHub. The dependency badge
+  also corrects the count from "one" to the actual three runtime dependencies
+  (`@modelcontextprotocol/sdk`, `node-html-parser`, `zod`), which npm's own
+  dependency list would otherwise contradict. Docs only — no code or API
+  changes. (#41)
+
 ## [0.4.0] — 2026-07-11
 
 ### Added
