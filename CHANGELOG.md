@@ -1,12 +1,10 @@
 # Changelog
 
-## 0.2.1
-
-- **Renamed: `@askalf/picket` → `@askalf/fieldpass`** (npm-publishable name; `picket` is squatted unscoped and the registry create-policy blocks colliding scoped names). GitHub repo becomes `askalf/fieldpass` (old URLs redirect). Legacy `picket`/`picket-mcp` bin aliases retained; MCP tool names and `PICKET_*` env vars unchanged.
-
-All notable changes to `@askalf/picket` are documented here.
+All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
+
+## [0.3.0] — 2026-07-11
 
 ### Added
 
@@ -25,24 +23,6 @@ All notable changes to `@askalf/picket` are documented here.
   regressed payload is filtered out of the replay diff too. The
   session-recorder / canon-skill plane (`src/skill.mjs`) remains a separate MCP
   surface gap, tracked as a follow-up. (#26)
-- **Streamable HTTP transport for the MCP server** — `picket-mcp --http`
-  serves `picket_observe` / `picket_gate` / `picket_login` as a URL-type MCP
-  server, so clients that can't spawn a stdio process (the Claude API MCP
-  connector, Managed Agents, remote agent runtimes) can attach. Spec session
-  management with every session sharing one governed browser (verdict cache
-  and keeper leases persist, same as stdio); binds `127.0.0.1` by default with
-  DNS-rebinding protection on loopback, optional constant-time bearer auth
-  (`PICKET_MCP_TOKEN`), and an unauthenticated `GET /healthz` liveness probe.
-  stdio stays the default transport.
-- **Framework example series** — four runnable, offline, no-API-key examples
-  of real agent-framework engines browsing behind the firewall via
-  `picket-mcp`: LangGraph.js (`StateGraph`), OpenAI Agents SDK (scripted
-  offline model through the genuine `Runner`), CrewAI (`Flow`), and Microsoft
-  AutoGen (`AssistantAgent` + `McpWorkbench`). Each reads a booby-trapped
-  invoice page, proves the injection is withheld while benign content
-  survives, has every hijack action refused at the gate, and shows login
-  failing closed with no vault — with captured evidence and pinned versions
-  from real runs in each example's `evidence/`.
 
 ### Security
 
@@ -103,6 +83,33 @@ All notable changes to `@askalf/picket` are documented here.
   detector now considers `shadow`/`pseudo` nodes too. Closed shadow roots and
   un-upgraded plain `<template>`s remain unreachable by construction — pinned as
   documented residual edges in `test/capture-shadow.test.mjs` and the README. (#25)
+
+## [0.2.1] — 2026-07-11
+
+### Changed
+
+- **Renamed: `@askalf/picket` → `@askalf/fieldpass`** (npm-publishable name; `picket` is squatted unscoped and the registry create-policy blocks colliding scoped names). GitHub repo becomes `askalf/fieldpass` (old URLs redirect). Legacy `picket`/`picket-mcp` bin aliases retained; MCP tool names and `PICKET_*` env vars unchanged.
+
+### Added
+
+- **Streamable HTTP transport for the MCP server** — `picket-mcp --http`
+  serves `picket_observe` / `picket_gate` / `picket_login` as a URL-type MCP
+  server, so clients that can't spawn a stdio process (the Claude API MCP
+  connector, Managed Agents, remote agent runtimes) can attach. Spec session
+  management with every session sharing one governed browser (verdict cache
+  and keeper leases persist, same as stdio); binds `127.0.0.1` by default with
+  DNS-rebinding protection on loopback, optional constant-time bearer auth
+  (`PICKET_MCP_TOKEN`), and an unauthenticated `GET /healthz` liveness probe.
+  stdio stays the default transport. (#21)
+- **Framework example series** — four runnable, offline, no-API-key examples
+  of real agent-framework engines browsing behind the firewall via
+  `picket-mcp`: LangGraph.js (`StateGraph`), OpenAI Agents SDK (scripted
+  offline model through the genuine `Runner`), CrewAI (`Flow`), and Microsoft
+  AutoGen (`AssistantAgent` + `McpWorkbench`). Each reads a booby-trapped
+  invoice page, proves the injection is withheld while benign content
+  survives, has every hijack action refused at the gate, and shows login
+  failing closed with no vault — with captured evidence and pinned versions
+  from real runs in each example's `evidence/`. (#22)
 
 ## [0.2.0] — 2026-07-01
 
