@@ -1,0 +1,54 @@
+name: Release assets
+
+# Attaches the npm tarball + its Sigstore provenance bundle to every GitHub
+# release (Scorecard Signed-Releases). fieldpass cuts tags + releases manually
+# (see publish.yml); this fires on publish and adds the signed artifacts.
+# Verify: `gh attestation verify <tarball> --owner askalf`.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # upload assets to the release
+      id-token: write # keyless Sigstore signing (attest-build-provenance)
+      attestations: write # persist the attestation in GitHub's store
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+
+      - name: Build npm tarball
+        id: pack
+        run: |
+          set -euo pipefail
+          tarball=$(npm pack --silent)
+          echo "tarball=${tarball}" >> "$GITHUB_OUTPUT"
+          sha256sum "$tarball"
+
+      - name: Attest build provenance (keyless Sigstore)
+        id: attest
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: ${{ steps.pack.outputs.tarball }}
+
+      - name: Upload tarball + provenance bundle to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp "$BUNDLE" "${TARBALL}.sigstore.json"
+          gh release upload "$TAG" --clobber "$TARBALL" "${TARBALL}.sigstore.json"
