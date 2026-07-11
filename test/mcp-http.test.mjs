@@ -33,7 +33,8 @@ test('mcp-http: serves the governed tools plus the oracle plane over Streamable 
     const client = await connect(srv);
     const { tools } = await client.listTools();
     assert.deepEqual(tools.map((t) => t.name).sort(),
-      ['picket_gate', 'picket_login', 'picket_observe', 'picket_replay', 'picket_snapshot', 'picket_verify']);
+      ['picket_gate', 'picket_login', 'picket_observe', 'picket_record_start', 'picket_replay',
+        'picket_skill_emit', 'picket_skill_replay', 'picket_snapshot', 'picket_verify']);
     assert.equal(srv.sessionCount(), 1, 'initialize opened a session');
   } finally {
     await srv.close();
@@ -92,6 +93,23 @@ test('mcp-http: the oracle golden store is shared across sessions (issue #26)', 
   }
 });
 
+test('mcp-http: a recording started in one session is emit-able from another (shared store)', async () => {
+  const srv = await serve({ allowlist: ['acme.example'] });
+  try {
+    const a = await connect(srv);
+    const b = await connect(srv);
+    await a.callTool({ name: 'picket_record_start', arguments: { name: 'shared-rec' } });
+    await a.callTool({ name: 'picket_observe', arguments: { html: '<p>Invoice #4471 due July 1.</p>', record: 'shared-rec' } });
+    assert.equal(srv.picket.recorders.size, 1, 'the recording lives on the ONE shared browser');
+    // session B finishes and emits A's recording
+    const emit = textOf(await b.callTool({ name: 'picket_skill_emit', arguments: { name: 'shared-rec' } }));
+    assert.match(emit, /skillHash [0-9a-f]{64}/, 'B emitted A\'s recording');
+    assert.equal(srv.picket.recorders.size, 0, 'emit dropped it by default');
+  } finally {
+    await srv.close();
+  }
+});
+
 test('mcp-http: gate decisions ride the HTTP transport', async () => {
   const srv = await serve({ allowlist: ['acme.example'] });
   try {
@@ -110,7 +128,7 @@ test('mcp-http: bearer token — 401 without it, tools with it', async () => {
 
     const client = await connect(srv, { requestInit: { headers: { authorization: 'Bearer sesame-3000' } } });
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 6, 'correct token → full service');
+    assert.equal(tools.length, 9, 'correct token → full service');
 
     await assert.rejects(
       connect(srv, { requestInit: { headers: { authorization: 'Bearer wrong-token-x' } } }),
@@ -151,7 +169,7 @@ test('mcp-http: DELETE ends a session; the other session keeps working', async (
     assert.equal(srv.sessionCount(), 1, 'DELETE tore down exactly one session');
 
     const { tools } = await b.listTools();
-    assert.equal(tools.length, 6, 'surviving session unaffected');
+    assert.equal(tools.length, 9, 'surviving session unaffected');
   } finally {
     await srv.close();
   }
