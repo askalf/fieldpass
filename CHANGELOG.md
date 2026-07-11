@@ -58,6 +58,16 @@ All notable changes to `@askalf/picket` are documented here.
   fence/role/token forgery (via the new position-preserving `foldCharMap`) and
   neutralizes the exact original span, emitting all other bytes — benign
   non-Latin copy — verbatim.
+- **Replay oracle now sees visible Shadow DOM / pseudo-element content (audit
+  follow-up).** #25 taught the capture plane about open shadow roots
+  (`source: 'shadow'`) and CSS `::before`/`::after` (`source: 'pseudo'`), but the
+  oracle's `visibleLines` still recognized only `text`/`meta`, so verification was
+  blind to that content: `picket_verify`'s truthful claim about shadow-rendered
+  text failed, `picket_snapshot` saw a shadow-only page as empty, and
+  `picket_replay` reported MATCH on a page whose visible shadow content had
+  changed. `visibleLines` now treats `shadow`/`pseudo` as visible (hidden ones
+  still excluded), so snapshot/verify/diff track exactly what the capture plane
+  sees.
 
 - **Unicode confusables / compatibility forms no longer evade the firewall.**
   The detector previously matched its signal patterns against text that had

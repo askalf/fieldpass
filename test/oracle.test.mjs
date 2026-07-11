@@ -77,6 +77,32 @@ test('verifyClaims: a hidden injection cannot satisfy a "page shows" claim (visi
   assert.equal(r.pass, false, 'hidden text is not visible content');
 });
 
+// ── Oracle sees the visible sources the capture plane emits (audit F3) ───────
+// #25 taught capture about open Shadow DOM (source:'shadow') and CSS
+// ::before/::after (source:'pseudo'); the verification plane must treat those as
+// visible too, or it goes blind to exactly that content.
+test('oracle sees visible Shadow DOM content in verify / snapshot / diff', () => {
+  const shadow = (inner) => captureFromHtml(`<div><template shadowrootmode="open">${inner}</template></div>`, { url: 'https://shop.example/o' });
+  const good = shadow('<p>Order #4471 confirmed. Payment successful.</p>');
+  // a truthful claim about shadow-rendered text now passes (was a false FAIL)
+  assert.equal(verifyClaims(good, { containsText: ['Payment successful'] }).pass, true);
+  const g = snapshot(good);
+  assert.ok(g.visibleCount >= 1 && g.visibleText.includes('Payment successful'), 'shadow text counts as visible');
+  // a shadow-only content change is caught (was a false MATCH before)
+  const d = diffSnapshots(g, snapshot(shadow('<p>Order #4471 CANCELLED. Payment failed.</p>')));
+  assert.equal(d.match, false);
+  assert.ok(d.addedText.some((l) => /Payment failed/.test(l)));
+});
+
+test('oracle treats pseudo content as visible, but a hidden shadow node as not', () => {
+  const mk = (nodes) => ({ url: 'https://shop.example/o', origin: 'https://shop.example', title: '', nodes, capturedBy: 'cdp' });
+  const n = (text, over) => ({ id: 'x', text, source: 'text', tag: 'div', path: '', hidden: false, hiddenReasons: [], ...over });
+  assert.equal(verifyClaims(mk([n('Order total $40', { source: 'pseudo' })]), { containsText: ['Order total $40'] }).pass, true);
+  // visibility inheritance still holds: a display:none host hides its shadow subtree
+  const hidden = mk([n('secret shadow note', { source: 'shadow', hidden: true, hiddenReasons: ['display:none'] })]);
+  assert.equal(verifyClaims(hidden, { containsText: ['secret shadow note'] }).pass, false);
+});
+
 test('ReplayOracle: record golden, replay diff, verify against named golden', () => {
   const o = new ReplayOracle();
   o.record('order-ok', obs(GOOD));
