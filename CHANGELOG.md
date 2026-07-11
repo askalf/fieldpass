@@ -4,6 +4,25 @@ All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Session-recorder / canon-skill plane over MCP** — the last plane reachable
+  only as a JS import (`src/skill.mjs`) is now on the MCP server, closing the
+  follow-up from the oracle-over-MCP work. `picket_record_start` opens a named
+  recording; passing `record: "<name>"` to `picket_observe` / `picket_gate` /
+  `picket_login` appends each governed step (secrets redacted, withheld payloads
+  never recorded). `picket_skill_emit` serializes it into a canon-pinnable
+  manifest with its `skillHash`; `picket_skill_replay` re-runs a recording (or a
+  supplied manifest) against the live browser and reports per-step drift and
+  `regressedToInjection`. Recordings live on the shared `GovernedBrowser` (persist
+  across HTTP sessions, bounded). Because the manifest crosses back to the agent,
+  `picket_skill_emit` reduces each observe golden to a fingerprint (no raw page
+  text) — an observe step read through the safe view never showed a withheld
+  payload, and the manifest can't recover it — while keeping the per-step
+  `verdict`, so recorded hostility still shows. The full-text (non-redacted) form
+  stays available via the JS `toCanonSkill()` for operator-side canon scanning.
+  MCP tool count 6 → 9. (#30)
+
 ## [0.3.0] — 2026-07-11
 
 ### Added

@@ -87,7 +87,7 @@ the agent's context.
 ## Use it as an MCP server
 
 fieldpass ships an MCP server, so *any* MCP client — Claude Desktop, Claude Code,
-or your own agent runtime — gets a firewalled browser as six tools:
+or your own agent runtime — gets a firewalled browser as nine tools:
 
 | tool | plane | what it does |
 |------|-------|--------------|
@@ -97,13 +97,22 @@ or your own agent runtime — gets a firewalled browser as six tools:
 | `picket_verify` | verification | the **anti-fabrication gate** — re-captures the real page and checks your `containsText`/`absentText`/`verdict`/`golden` claims against it, deterministically (no LLM). Culls "the page now shows X" confabulations before you act |
 | `picket_snapshot` | verification | records a named **golden** fingerprint of a known-good page (hash + verdict + structure; no raw body in the reply) |
 | `picket_replay` | verification | re-captures a page and diffs it against a golden; headline `regressedToInjection` flags a page that was clean and now trips the firewall (tamper / supply-chain) |
+| `picket_record_start` | skill | begins a named recording; add `record: "<name>"` to `observe`/`gate`/`login` to append steps (secrets + withheld payloads never recorded) |
+| `picket_skill_emit` | skill | serializes a recording into a **canon-pinnable manifest** (with `skillHash`); goldens are reduced to fingerprints — no raw page text or secrets |
+| `picket_skill_replay` | skill | re-runs a recording (or a manifest) against the live browser, reporting drift and `regressedToInjection` per step |
 
-The three verification tools back onto the deterministic replay oracle
+The verification tools back onto the deterministic replay oracle
 (`src/oracle.mjs`): they run against the **re-captured** page through the same
 governed browser, never against agent-supplied text, and — like `picket_observe`
 — never echo a withheld injection excerpt (a regressed payload is filtered out
-of the replay diff too). The golden store is shared for the life of the server
-(across HTTP sessions on the one browser) and bounded.
+of the replay diff too). The skill tools (`src/skill.mjs`) record a governed
+session into a manifest **canon** can scan / pin / sign / verify; because the
+manifest crosses back to the agent, `picket_skill_emit` redacts recorded page
+text (an observe step read through the safe view never showed you a withheld
+payload, and the manifest can't recover it) while keeping the per-step `verdict`
+so recorded hostility still shows. The golden store and in-flight recordings are
+shared for the life of the server (across HTTP sessions on the one browser) and
+bounded.
 
 Wire it into an MCP client (e.g. Claude Code `.mcp.json` or Claude Desktop):
 
@@ -324,11 +333,11 @@ All five shipped — the prototype is now a layered product: deterministic firew
    routes to a `claude-haiku-4-5` verdict; the deterministic fast path keeps the
    obvious 90%. Calibration corpus and a content-keyed verdict cache (repeat
    fragments are free) are in.
-2. ~~**MCP server**~~ — **done** (`src/mcp.mjs`, `bin/fieldpass-mcp.mjs`): the
-   governed browser as `picket_observe`/`picket_gate`/`picket_login` for any MCP
-   client, plus the oracle plane (`picket_verify`/`picket_snapshot`/`picket_replay`).
-   (Next: expose the session-recorder / canon-skill plane over MCP too; canon-scan
-   the server itself.)
+2. ~~**MCP server**~~ — **done** (`src/mcp.mjs`, `bin/fieldpass-mcp.mjs`): all
+   five planes for any MCP client — `picket_observe`/`picket_gate`/`picket_login`,
+   the oracle (`picket_verify`/`picket_snapshot`/`picket_replay`), and the skill
+   recorder (`picket_record_start` + `record:"<name>"` → `picket_skill_emit`/
+   `picket_skill_replay`). (Next: canon-scan the server itself.)
 3. ~~**Live context-broker**~~ — **done** (`src/broker.mjs`): a pool of isolated,
    keeper-backed persona contexts (`checkout`/`checkin`) on one shared Chrome —
    per-persona session that's logged-in once and reused, a per-persona lock so

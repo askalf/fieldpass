@@ -62,13 +62,33 @@ export class SessionRecorder {
   toSkill() { return toCanonSkill(this); }
 }
 
+/** A golden reduced to its safe fingerprint: drops `visibleText` (raw page copy)
+ *  while keeping the verdict, textHash and counts. Used when a manifest crosses
+ *  an untrusted boundary — an observe step recorded through the SAFE view never
+ *  showed the agent a withheld payload, and the emitted manifest must not
+ *  recover it. Recorded hostility still shows as `verdict`. */
+function redactGolden(g) {
+  if (!g || typeof g !== 'object') return g;
+  const { visibleText, ...rest } = g;
+  return rest;
+}
+
 /**
  * Serialize a recorder into a canon-pinnable manifest. canon loads JSON-with-
  * `tools` as a skill and scans each tool description + the manifest envelope
  * (which includes `steps` and their goldens) for poisoning.
+ *
+ * @param {SessionRecorder} recorder
+ * @param {{redactText?: boolean}} [opts] when true, each observe golden is
+ *   reduced to its fingerprint (no raw `visibleText`) BEFORE hashing — so the
+ *   manifest is safe to hand across an untrusted boundary and its `hash` still
+ *   pins exactly the bytes returned. Default false keeps full goldens for
+ *   operator-side canon scanning of recorded page content.
  */
-export function toCanonSkill(recorder) {
-  const steps = recorder.steps;
+export function toCanonSkill(recorder, opts = {}) {
+  const steps = opts.redactText
+    ? recorder.steps.map((s) => (s.type === 'observe' && s.golden ? { ...s, golden: redactGolden(s.golden) } : s))
+    : recorder.steps;
   const tools = steps.map((s, i) => ({ name: `${i + 1}.${s.type}${s.label ? `:${s.label}` : ''}`, description: describeStep(s, i) }));
   const manifest = {
     name: recorder.name,

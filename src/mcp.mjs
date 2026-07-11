@@ -1,17 +1,24 @@
 /**
  * picket as an MCP server — the governed browser exposed as tools any MCP
- * client (Claude Desktop, Claude Code, or any agent runtime) can call. Three
- * tools, one per plane:
+ * client (Claude Desktop, Claude Code, or any agent runtime) can call, one
+ * group per plane:
  *
- *   picket_observe  — perception: read an untrusted page, get the SAFE,
- *                     instruction-stripped view (injection payloads withheld).
- *   picket_gate     — action: allow / step-up / deny an outbound browser action.
- *   picket_login    — identity: lease a credential persona (opaque handle only).
+ *   perception   picket_observe — read an untrusted page, get the SAFE,
+ *                                  instruction-stripped view (payloads withheld).
+ *   action       picket_gate    — allow / step-up / deny an outbound action.
+ *   identity     picket_login   — lease a credential persona (opaque handle).
+ *   verification picket_verify / picket_snapshot / picket_replay — the
+ *                                  deterministic anti-fabrication oracle.
+ *   skill        picket_record_start + record:"<name>" on the plane tools →
+ *                                  picket_skill_emit / picket_skill_replay: record
+ *                                  a governed session as a canon-pinnable manifest.
  *
- * One GovernedBrowser backs all three so the judge's verdict cache and keeper
- * leases persist across calls. The server NEVER returns the raw text of a
- * blocked/quarantined node — only counts and categories — so an agent can't
- * defeat the firewall by reading picket's own response.
+ * One GovernedBrowser backs them all, so the judge's verdict cache, keeper
+ * leases, golden store and in-flight recordings persist across calls (and across
+ * HTTP sessions). The server NEVER returns the raw text of a blocked/quarantined
+ * node — only counts and categories — so an agent can't defeat the firewall by
+ * reading picket's own response; the skill manifest redacts recorded page text
+ * for the same reason.
  */
 
 import { z } from 'zod';
@@ -19,7 +26,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { GovernedBrowser } from './govern.mjs';
 import { captureFromHtml, captureFromBridge } from './capture.mjs';
 import { detect } from './detect.mjs';
-import { ReplayOracle } from './oracle.mjs';
+import { ReplayOracle, snapshot, diffSnapshots } from './oracle.mjs';
+import { SessionRecorder, toCanonSkill } from './skill.mjs';
 
 const err = (text) => ({ isError: true, content: [{ type: 'text', text }] });
 const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
@@ -70,6 +78,14 @@ export function createPicketServer(opts = {}) {
   // and keeper leases. Bounded so an untrusted client can't grow it unboundedly.
   const oracle = picket.oracle || (picket.oracle = new ReplayOracle({ maxGoldens: opts.maxGoldens ?? 256 }));
 
+  // The skill plane's in-flight recordings, keyed by name. Same shared-browser
+  // lifetime as the golden store (persists across HTTP sessions), and bounded so
+  // an untrusted client can't grow it unboundedly. A call records into a
+  // recording iff it passes `record: "<name>"` — there is no hidden "active"
+  // global, so concurrent recordings never interfere.
+  const MAX_RECORDERS = opts.maxRecorders ?? 64;
+  const recorders = picket.recorders || (picket.recorders = new Map());
+
   /**
    * Re-capture a page through the SAME governed path picket_observe uses (live
    * CDP when configured, static parse otherwise) and return the raw Observation.
@@ -101,10 +117,12 @@ export function createPicketServer(opts = {}) {
       url: z.string().url().optional().describe('URL to read through the governed browser (needs a CDP endpoint)'),
       html: z.string().optional().describe('Inline HTML to analyze instead of fetching a URL'),
       task: z.string().optional().describe('The trusted task you are doing — fenced into the safe view and given to the judge'),
+      record: z.string().optional().describe('append this read as a step to the named recording (see picket_record_start)'),
     },
     annotations: { readOnlyHint: true, openWorldHint: true },
-  }, async ({ url, html, task }) => {
+  }, async ({ url, html, task, record }) => {
     if (!url && html == null) return err('picket_observe needs either `url` or `html`.');
+    if (record != null && !recorders.has(record)) return err(`no recording named "${record}" — start one with picket_record_start.`);
 
     const input = { url, html };
     if (cdp) {
@@ -124,6 +142,7 @@ export function createPicketServer(opts = {}) {
     if (task != null) picket.task = task;
     try {
       const r = await picket.observe(input);
+      if (record != null) recorders.get(record).observe(r.observation, { label: task });
       const d = r.detection;
       // counts + categories only — NEVER the withheld excerpts
       const findings = d.findings.map((f) => ({ action: f.action, severity: f.severity, categories: f.categories, hidden: !!f.hidden }));
@@ -158,10 +177,13 @@ export function createPicketServer(opts = {}) {
       text: z.string().optional().describe('text to type / button label'),
       intent: z.string().optional().describe('what this action is trying to accomplish'),
       credential: z.boolean().optional().describe('set true if this field holds a secret'),
+      record: z.string().optional().describe('append this decision as a step to the named recording'),
     },
     annotations: { readOnlyHint: true },
-  }, async (action) => {
+  }, async ({ record, ...action }) => {
+    if (record != null && !recorders.has(record)) return err(`no recording named "${record}".`);
     const r = picket.gate(action);
+    if (record != null) recorders.get(record).gate(action, r);
     const tag = r.allowed ? 'ALLOW' : r.requireApproval ? 'STEP-UP' : 'DENY';
     return { content: [{ type: 'text', text: `${tag}: ${r.reason}` }] };
   });
@@ -172,10 +194,13 @@ export function createPicketServer(opts = {}) {
       'Request a login lease for a pre-configured persona. You get back an opaque lease handle; the actual username/password are filled at the browser layer by keeper and never enter your context.',
     inputSchema: {
       persona: z.string().describe('the configured identity to log in as'),
+      record: z.string().optional().describe('append this login as a step to the named recording'),
     },
-  }, async ({ persona }) => {
+  }, async ({ persona, record }) => {
+    if (record != null && !recorders.has(record)) return err(`no recording named "${record}".`);
     try {
       const lease = await picket.login(persona);
+      if (record != null) recorders.get(record).login(persona, lease);
       return { content: [{ type: 'text', text: `leased ${JSON.stringify(lease)} — no secret material in this handle` }] };
     } catch (e) {
       return err(e.message);
@@ -294,6 +319,101 @@ export function createPicketServer(opts = {}) {
     } catch (e) {
       return err(`replay failed: ${e.message}`);
     }
+  });
+
+  // ── Skill plane: record a governed session → canon-pinnable manifest ─────────
+
+  server.registerTool('picket_record_start', {
+    title: 'Begin recording a governed browsing session',
+    description:
+      'Open a named session recording. Subsequent picket_observe / picket_gate / picket_login calls that pass `record: "<name>"` are appended as steps — secrets are redacted and withheld injection payloads are never recorded. Finish with picket_skill_emit to get a canon-pinnable manifest, or discard by never emitting.',
+    inputSchema: {
+      name: z.string().min(1).describe('name for this recording'),
+      version: z.string().optional().describe('manifest version string (default "1")'),
+    },
+    annotations: { readOnlyHint: true },
+  }, async ({ name, version }) => {
+    if (recorders.has(name)) return err(`a recording named "${name}" already exists — emit or pick another name.`);
+    if (recorders.size >= MAX_RECORDERS) recorders.delete(recorders.keys().next().value); // evict oldest
+    recorders.set(name, new SessionRecorder({ name, version: version || '1' }));
+    return { content: [{ type: 'text', text: `recording "${name}" started — pass record:"${name}" to picket_observe/gate/login, then picket_skill_emit.` }] };
+  });
+
+  server.registerTool('picket_skill_emit', {
+    title: 'Emit the recorded session as a canon-pinnable skill manifest',
+    description:
+      'Serialize a recording into a JSON manifest canon can scan / pin / sign / verify, with its content hash (skillHash). Each observe golden is reduced to a fingerprint (verdict + hash + counts) — no raw page text and no secret material is returned, so a recorded page you were never shown (a withheld injection) cannot be recovered through this tool; recorded hostility still shows as its `verdict`. Drops the recording unless keep:true.',
+    inputSchema: {
+      name: z.string().min(1).describe('the recording to emit'),
+      keep: z.boolean().optional().describe('keep the recording after emitting (default: drop it)'),
+    },
+    annotations: { readOnlyHint: true },
+  }, async ({ name, keep }) => {
+    const rec = recorders.get(name);
+    if (!rec) return err(`no recording named "${name}".`);
+    if (rec.steps.length === 0) return err(`recording "${name}" has no steps yet.`);
+    const manifest = toCanonSkill(rec, { redactText: true });
+    if (!keep) recorders.delete(name);
+    const banner = `skill "${manifest.name}" v${manifest.version} — ${manifest.steps.length} step(s) · skillHash ${manifest.hash}${keep ? '' : ' · recording dropped'}`;
+    return { content: [{ type: 'text', text: banner }, { type: 'text', text: JSON.stringify(manifest) }] };
+  });
+
+  server.registerTool('picket_skill_replay', {
+    title: 'Replay a recorded skill and report drift',
+    description:
+      'Re-run a recording against the live browser: each observe step is re-captured and diffed against its golden (regressedToInjection flags a page that was clean and now trips the firewall), and each gate step is re-checked. Pass a live recording `name` (line-level diff) or a `manifest` JSON from picket_skill_emit (fingerprint drift only — the safe manifest carries no page text). Added/removed lines belonging to a withheld injection are filtered out, so no payload text leaks.',
+    inputSchema: {
+      name: z.string().optional().describe('a live in-server recording to replay (line-level diff)'),
+      manifest: z.string().optional().describe('a manifest JSON from picket_skill_emit to replay (fingerprint drift only)'),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  }, async ({ name, manifest }) => {
+    let steps;
+    if (name != null) {
+      const rec = recorders.get(name);
+      if (!rec) return err(`no recording named "${name}".`);
+      steps = rec.steps; // full goldens (with visibleText) → line-level diff
+    } else if (manifest != null) {
+      try { steps = (JSON.parse(manifest).steps) || []; } catch { return err('manifest is not valid JSON.'); }
+    } else {
+      return err('picket_skill_replay needs a `name` or a `manifest`.');
+    }
+
+    const report = [];
+    for (const s of steps) {
+      if (s.type === 'observe') {
+        const { observation, error } = await captureObs(s.url, undefined);
+        if (error) { report.push({ type: 'observe', url: s.url, skipped: error }); continue; }
+        const det = detect(observation);
+        const diff = diffSnapshots(s.golden, snapshot(observation, { detection: det }));
+        // A redacted (emit) golden has no visibleText → line diff is meaningless;
+        // report fingerprint drift only. A full (named) golden gets a line diff,
+        // filtered so a withheld payload on the re-captured page never leaks.
+        const redacted = s.golden.visibleText === undefined;
+        const withheld = det.findings
+          .filter((f) => f.action === 'block' || f.action === 'quarantine')
+          .map((f) => norm((observation.nodes.find((n) => n.id === f.nodeId) || {}).text))
+          .filter(Boolean);
+        const leaks = (line) => { const n = norm(line); return !!n && withheld.some((w) => w.includes(n) || n.includes(w)); };
+        report.push({
+          type: 'observe', url: s.url, match: diff.match,
+          regressedToInjection: diff.regressedToInjection, verdictChanged: diff.verdictChanged,
+          addedText: redacted ? [] : diff.addedText.filter((l) => !leaks(l)),
+          removedText: redacted ? [] : diff.removedText.filter((l) => !leaks(l)),
+        });
+      } else if (s.type === 'gate') {
+        const r = picket.gate(s.action);
+        const match = !!r.allowed === s.decision.allowed && !!r.requireApproval === s.decision.requireApproval;
+        report.push({ type: 'gate', action: { type: s.action.type, target: s.action.url || s.action.selector || '' }, match, expected: s.decision, got: { allowed: !!r.allowed, requireApproval: !!r.requireApproval } });
+      } else {
+        report.push({ type: s.type, skipped: 'not replayable' });
+      }
+    }
+    const checked = report.filter((r) => typeof r.match === 'boolean');
+    const regressed = report.some((r) => r.regressedToInjection);
+    const pass = checked.length > 0 && checked.every((r) => r.match && !r.regressedToInjection);
+    const banner = `picket_skill_replay: ${pass ? 'PASS' : 'DRIFT'}${regressed ? ' · ⚠ REGRESSED TO INJECTION' : ''} · ${checked.length} step(s) checked`;
+    return { content: [{ type: 'text', text: banner }, { type: 'text', text: JSON.stringify({ pass, report }) }] };
   });
 
   return { server, picket };
