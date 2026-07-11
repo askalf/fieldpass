@@ -66,7 +66,7 @@ npm run demo:skill       # record a session → truecopy-pinnable skill → repl
 npx -y github:askalf/fieldpass scan demo/booby-trapped.html --safe   # CLI; exit 0 allow · 1 quarantine · 2 block
 ```
 
-> Not yet on npm — installs straight from GitHub.
+> On npm: `npm i -g @askalf/fieldpass` (or `npx -y @askalf/fieldpass …`). Also installable straight from GitHub: `npm i -g github:askalf/fieldpass`.
 
 ### What the demo shows
 
