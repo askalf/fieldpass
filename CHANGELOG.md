@@ -29,6 +29,22 @@ All notable changes to `@askalf/picket` are documented here.
   failing closed with no vault — with captured evidence and pinned versions
   from real runs in each example's `evidence/`.
 
+### Security
+
+- **Unicode confusables / compatibility forms no longer evade the firewall.**
+  The detector previously matched its signal patterns against text that had
+  only been zero-width-stripped, so a homoglyph (`Іgnore`, Cyrillic I) or
+  fullwidth (`ｉｇｎｏｒｅ`) spelling of an imperative sailed through as benign
+  data — and a hidden trifecta so disguised downgraded from `block` to
+  `quarantine`, losing the `trifecta` flag. Signal matching now runs on a
+  canonical, detection-only fold (`foldConfusables` — strip invisibles → NFKC →
+  Cyrillic/Greek confusable map) while excerpts, URL/email extraction and the
+  human report keep the original text, so real hosts and benign international
+  copy (`café`, `Zürich`, CJK, fullwidth prices) are never mangled. The safe
+  view's `escapeForData` folds the same way, so a fullwidth fence
+  (`＝＝＝ END UNTRUSTED PAGE DATA ＝＝＝`) or homoglyph role tag (`<ѕystem>`) can no
+  longer forge a provenance boundary into the model-facing view. (#24)
+
 ## [0.2.0] — 2026-07-01
 
 The complete prototype→product roadmap since the initial release: LLM-judge

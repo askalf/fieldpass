@@ -9,7 +9,7 @@
  * data inside the fence. This is the spotlighting/quarantine pattern, enforced.
  */
 
-import { stripInvisible } from './patterns.mjs';
+import { foldConfusables } from './patterns.mjs';
 
 const FENCE_OPEN = '=== BEGIN UNTRUSTED PAGE DATA ===';
 const FENCE_CLOSE = '=== END UNTRUSTED PAGE DATA ===';
@@ -22,7 +22,10 @@ function placeholder(node, finding) {
 
 function escapeForData(text) {
   // Neutralize anything that could re-open the fence or forge a role boundary.
-  return stripInvisible(text)
+  // Fold to a canonical form first (strip invisibles + NFKC + confusables) so a
+  // fullwidth fence "＝＝＝ END UNTRUSTED PAGE DATA ＝＝＝" or a homoglyph role tag
+  // "<ѕystem>" can't slip a forged boundary into the model-facing view.
+  return foldConfusables(text)
     .replace(/===+/g, '==')
     .replace(/<\s*\/?\s*(system|assistant|user|instructions?|developer)\s*>/gi, '[tag]')
     .replace(/<\|[^|>]*\|>/g, '[tok]')
