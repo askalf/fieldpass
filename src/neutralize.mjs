@@ -9,10 +9,20 @@
  * data inside the fence. This is the spotlighting/quarantine pattern, enforced.
  */
 
-import { foldConfusables } from './patterns.mjs';
+import { foldCharMap } from './patterns.mjs';
 
 const FENCE_OPEN = '=== BEGIN UNTRUSTED PAGE DATA ===';
 const FENCE_CLOSE = '=== END UNTRUSTED PAGE DATA ===';
+
+// Boundary forgeries to neutralize: a re-opened fence, a forged role tag, a
+// special-token delimiter. Matched against a confusable-FOLDED copy so a
+// fullwidth "＝＝＝" or homoglyph "<ѕystem>" is caught, but neutralized in the
+// ORIGINAL bytes (see escapeForData).
+const FORGERIES = [
+  [/={3,}/g, '=='],
+  [/<\s*\/?\s*(system|assistant|user|instructions?|developer)\s*>/gi, '[tag]'],
+  [/<\|[^|>]*\|>/g, '[tok]'],
+];
 
 function placeholder(node, finding) {
   const len = (node.text || '').length;
@@ -21,16 +31,33 @@ function placeholder(node, finding) {
 }
 
 function escapeForData(text) {
-  // Neutralize anything that could re-open the fence or forge a role boundary.
-  // Fold to a canonical form first (strip invisibles + NFKC + confusables) so a
-  // fullwidth fence "＝＝＝ END UNTRUSTED PAGE DATA ＝＝＝" or a homoglyph role tag
-  // "<ѕystem>" can't slip a forged boundary into the model-facing view.
-  return foldConfusables(text)
-    .replace(/===+/g, '==')
-    .replace(/<\s*\/?\s*(system|assistant|user|instructions?|developer)\s*>/gi, '[tag]')
-    .replace(/<\|[^|>]*\|>/g, '[tok]')
-    .replace(/\s+/g, ' ')
-    .trim();
+  // Detect fence / role / token forgeries on a confusable-folded copy so a
+  // fullwidth or homoglyph boundary is caught too — but neutralize ONLY the
+  // exact original span each match covers, and emit every other byte unchanged.
+  // Shipping a globally-folded copy would corrupt legitimate non-Latin page text
+  // (Cyrillic/Greek/CJK) the model needs to read; folding is for detection only.
+  const { folded, map, stripped } = foldCharMap(text);
+  const repls = [];
+  for (const [re, token] of FORGERIES) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(folded)) !== null) {
+      if (m[0].length === 0) { re.lastIndex++; continue; }
+      const start = map[m.index];
+      const end = m.index + m[0].length < map.length ? map[m.index + m[0].length] : stripped.length;
+      repls.push({ start, end, token });
+    }
+  }
+  repls.sort((a, b) => a.start - b.start || b.end - a.end);
+  let out = '';
+  let cursor = 0;
+  for (const r of repls) {
+    if (r.start < cursor) continue; // overlaps a span already neutralized
+    out += stripped.slice(cursor, r.start) + r.token;
+    cursor = r.end;
+  }
+  out += stripped.slice(cursor);
+  return out.replace(/\s+/g, ' ').trim();
 }
 
 /**
