@@ -4,6 +4,8 @@ All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-07-11
+
 ### Added
 
 - **Session-recorder / canon-skill plane over MCP** — the last plane reachable
