@@ -118,6 +118,47 @@ export function stripInvisible(text) {
   return text.replace(ZERO_WIDTH_RE, '').replace(UNICODE_TAGS_RE, '');
 }
 
+/**
+ * Latin look-alikes that NFKC does NOT fold: Cyrillic and Greek homoglyphs of
+ * ASCII letters. NFKC alone collapses the largest evasion surface — fullwidth
+ * (U+FF01–), mathematical alphanumerics (U+1D400–), and other compatibility
+ * forms — down to their ASCII skeleton; this map covers the homoglyph residue
+ * NFKC leaves behind. Detection-only: folded solely to test signal patterns,
+ * never shown to a user. Scoped to the letters real homoglyph payloads use and
+ * kept as explicit code points, same convention as ZERO_WIDTH_RE.
+ */
+const CONFUSABLES = new Map([
+  // Cyrillic lowercase
+  ['а', 'a'], ['е', 'e'], ['о', 'o'], ['р', 'p'], ['с', 'c'],
+  ['у', 'y'], ['х', 'x'], ['ѕ', 's'], ['і', 'i'], ['ј', 'j'],
+  ['к', 'k'], ['м', 'm'], ['ԁ', 'd'], ['һ', 'h'],
+  // Cyrillic uppercase
+  ['А', 'A'], ['В', 'B'], ['Е', 'E'], ['К', 'K'], ['М', 'M'],
+  ['Н', 'H'], ['О', 'O'], ['Р', 'P'], ['С', 'C'], ['Т', 'T'],
+  ['У', 'Y'], ['Х', 'X'], ['І', 'I'], ['Ј', 'J'], ['Ѕ', 'S'],
+  // Greek uppercase
+  ['Α', 'A'], ['Β', 'B'], ['Ε', 'E'], ['Ζ', 'Z'], ['Η', 'H'],
+  ['Ι', 'I'], ['Κ', 'K'], ['Μ', 'M'], ['Ν', 'N'], ['Ο', 'O'],
+  ['Ρ', 'P'], ['Τ', 'T'], ['Υ', 'Y'], ['Χ', 'X'],
+  // Greek lowercase
+  ['α', 'a'], ['ο', 'o'], ['ρ', 'p'], ['ι', 'i'], ['κ', 'k'],
+  ['ν', 'v'], ['χ', 'x'],
+]);
+
+/**
+ * Fold to a canonical form BEFORE signal matching: strip invisibles, NFKC-fold
+ * compatibility code points to ASCII, then fold the Cyrillic/Greek homoglyph
+ * residue. Detection-only — callers keep the ORIGINAL text for excerpts, URL /
+ * email extraction, and anything shown to a human, so real hosts and benign
+ * international copy are never mangled by this pass.
+ */
+export function foldConfusables(text) {
+  const nfkc = stripInvisible(text).normalize('NFKC');
+  let out = '';
+  for (const ch of nfkc) out += CONFUSABLES.get(ch) ?? ch;
+  return out;
+}
+
 export function matchAny(text, res) {
   return res.some((re) => re.test(text));
 }

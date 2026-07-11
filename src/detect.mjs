@@ -12,7 +12,7 @@
 import {
   INSTRUCTION_TO_AI, AUTHORITY_SPOOF, TOOL_CALL, EXFIL_VERB, SENSITIVE,
   SUSPICIOUS_SINKS, SCHEME_SINK_RE, HARD_INSTRUCTION,
-  stripInvisible, stripSinks, matchAny, matchedLabels,
+  stripInvisible, foldConfusables, stripSinks, matchAny, matchedLabels,
   extractUrls, extractEmails, hostOf,
 } from './patterns.mjs';
 
@@ -57,8 +57,12 @@ export function severityToAction(sev) {
  * non-http(s) scheme (data:/javascript:/blob:…) that hostOf can't classify.
  * The verb is matched against sink-stripped text so a word inside a hostname or
  * path (e.g. "upload" in upload.wikimedia.org) can't satisfy it on its own.
+ *
+ * Sinks come from the ORIGINAL text (URL/email hosts must not be mangled by
+ * confusable folding); the verb is matched against the FOLDED copy so a
+ * homoglyph/fullwidth "ѕend" / "ｓｅｎｄ" still counts as an exfil verb.
  */
-function hasExfilLeg(text, ctx) {
+function hasExfilLeg(text, folded, ctx) {
   const offOriginUrl = extractUrls(text).some((u) => {
     const h = hostOf(u);
     return h && h !== ctx.originHost;
@@ -68,7 +72,7 @@ function hasExfilLeg(text, ctx) {
     extractEmails(text).length > 0 ||
     SUSPICIOUS_SINKS.some((re) => re.test(text)) ||
     SCHEME_SINK_RE.test(text);
-  return externalSink && matchAny(stripSinks(text), EXFIL_VERB);
+  return externalSink && matchAny(stripSinks(folded), EXFIL_VERB);
 }
 
 /**
@@ -80,20 +84,24 @@ export function analyzeNode(node, ctx) {
   const raw = node.text || '';
   const clean = stripInvisible(raw);
   const zeroWidth = clean.length !== raw.length;
+  // Signal matching runs on the confusable-folded copy so homoglyph / fullwidth
+  // spellings of an imperative can't slip past the patterns; excerpts, URLs and
+  // emails below still derive from `clean` so real hosts stay intact.
+  const folded = foldConfusables(raw);
 
   const signals = {
     hidden: !!node.hidden,
     zeroWidth,
-    instructionToAI: matchAny(clean, INSTRUCTION_TO_AI),
-    authoritySpoof: matchAny(clean, AUTHORITY_SPOOF),
-    toolCall: matchAny(clean, TOOL_CALL),
-    sensitive: matchAny(clean, SENSITIVE),
+    instructionToAI: matchAny(folded, INSTRUCTION_TO_AI),
+    authoritySpoof: matchAny(folded, AUTHORITY_SPOOF),
+    toolCall: matchAny(folded, TOOL_CALL),
+    sensitive: matchAny(folded, SENSITIVE),
     exfilTarget: false,
   };
 
   const urls = extractUrls(clean);
   const emails = extractEmails(clean);
-  signals.exfilTarget = hasExfilLeg(clean, ctx);
+  signals.exfilTarget = hasExfilLeg(clean, folded, ctx);
 
   // A node is only a Finding if it carries a command signal, OR it is hidden
   // with substance, OR it fuses exfil with a reason to care. Pure-hidden
@@ -135,9 +143,9 @@ export function analyzeNode(node, ctx) {
     categories,
     signals,
     matched: {
-      instructionToAI: matchedLabels(clean, INSTRUCTION_TO_AI),
-      authoritySpoof: matchedLabels(clean, AUTHORITY_SPOOF),
-      toolCall: matchedLabels(clean, TOOL_CALL),
+      instructionToAI: matchedLabels(folded, INSTRUCTION_TO_AI),
+      authoritySpoof: matchedLabels(folded, AUTHORITY_SPOOF),
+      toolCall: matchedLabels(folded, TOOL_CALL),
     },
     sinks: [...new Set([...urls.filter((u) => hostOf(u) && hostOf(u) !== ctx.originHost), ...emails])].slice(0, 5),
     score,
@@ -177,14 +185,20 @@ function hasOffOriginSink(text, ctx) {
   return offUrl || SUSPICIOUS_SINKS.some((re) => re.test(text)) || SCHEME_SINK_RE.test(text) || hasOffOriginEmail(text, ctx);
 }
 
-const hasOffOriginExfilLeg = (text, ctx) => hasOffOriginSink(text, ctx) && matchAny(stripSinks(text), EXFIL_VERB);
+/** Sink from the ORIGINAL text (hosts unmangled), exfil verb from the FOLDED
+ *  copy (homoglyph/fullwidth "ѕend" still counts). */
+const hasOffOriginExfilLeg = (text, folded, ctx) =>
+  hasOffOriginSink(text, ctx) && matchAny(stripSinks(folded), EXFIL_VERB);
 
 /** Does this node carry a low-FP leg worth redacting as part of a split? Note an
  *  exfil VERB alone does NOT qualify ("email us at…" is benign) — only an
- *  unambiguous instruction, named sensitive data, or an off-origin sink. */
-const isSplitContributor = (text, ctx) =>
-  matchAny(text, HARD_INSTRUCTION) || matchAny(text, AUTHORITY_SPOOF) ||
-  matchAny(text, SENSITIVE) || hasOffOriginSink(text, ctx);
+ *  unambiguous instruction, named sensitive data, or an off-origin sink. The
+ *  instruction/sensitive legs match on the folded copy; the sink on the original. */
+const isSplitContributor = (text, ctx) => {
+  const folded = foldConfusables(text);
+  return matchAny(folded, HARD_INSTRUCTION) || matchAny(folded, AUTHORITY_SPOOF) ||
+    matchAny(folded, SENSITIVE) || hasOffOriginSink(stripInvisible(text), ctx);
+};
 
 /**
  * Catch a trifecta SPLIT across adjacent nodes. analyzeNode is per-node, so an
@@ -229,10 +243,12 @@ function detectSplitTrifecta(nodes, ctx, existing) {
       if (win.length < 2) continue;
       if (win.some((n) => blocked.has(n.id))) continue; // malice already pinned to one node
 
-      const text = stripInvisible(win.map((n) => n.text || '').join(' • '));
-      const hardInstr = matchAny(text, HARD_INSTRUCTION) || matchAny(text, AUTHORITY_SPOOF);
-      const sensitive = matchAny(text, SENSITIVE);
-      const exfil = hasOffOriginExfilLeg(text, ctx);
+      const concat = win.map((n) => n.text || '').join(' • ');
+      const text = stripInvisible(concat);       // original — for sinks / hosts
+      const folded = foldConfusables(concat);    // canonical — for signal patterns
+      const hardInstr = matchAny(folded, HARD_INSTRUCTION) || matchAny(folded, AUTHORITY_SPOOF);
+      const sensitive = matchAny(folded, SENSITIVE);
+      const exfil = hasOffOriginExfilLeg(text, folded, ctx);
       const hiddenSpan = win.some((n) => n.hidden);
 
       const isBlock = hardInstr && sensitive && exfil;
