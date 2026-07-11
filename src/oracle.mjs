@@ -18,10 +18,17 @@
 
 import { detect, actionRank } from './detect.mjs';
 
+/** Sources that carry text a sighted user actually reads. Includes `shadow`
+ *  (open shadow-root text) and `pseudo` (CSS ::before/::after content) — the
+ *  live backend emits these for real rendered content, so the verification plane
+ *  must treat them as visible too, or it goes blind to exactly what the capture
+ *  plane now sees (a shadow-only page would look empty / unchanged). */
+const VISIBLE_SOURCES = new Set(['text', 'meta', 'shadow', 'pseudo']);
+
 /** Visible, model-facing text lines (what a user/agent actually sees). */
 function visibleLines(obs) {
   return (obs.nodes || [])
-    .filter((n) => !n.hidden && (n.source === 'text' || n.source === 'meta') && (n.text || '').trim())
+    .filter((n) => !n.hidden && VISIBLE_SOURCES.has(n.source) && (n.text || '').trim())
     .map((n) => n.text.replace(/\s+/g, ' ').trim());
 }
 
