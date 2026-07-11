@@ -46,6 +46,19 @@ All notable changes to `@askalf/picket` are documented here.
 
 ### Security
 
+- **Hardened the Unicode confusable fold (audit follow-up).** Two weaknesses in
+  the fold added for the confusables bypass fix: (1) the `CONFUSABLES` map was a
+  narrow Cyrillic/Greek set, so a Latin/IPA look-alike with no NFKC
+  decomposition — the script-g `ɡ` (U+0261) — still let `iɡnore all previous
+  instructions…` through as `allow`; the map now also covers the Latin/IPA
+  homoglyphs and more Greek/Cyrillic letters (it stays a curated denylist, with
+  the LLM judge as the backstop for the long tail). (2) `escapeForData` emitted a
+  globally-folded copy, which Latinized legitimate Cyrillic/Greek and normalized
+  CJK page text in the model-facing safe view; it now folds only to *detect* a
+  fence/role/token forgery (via the new position-preserving `foldCharMap`) and
+  neutralizes the exact original span, emitting all other bytes — benign
+  non-Latin copy — verbatim.
+
 - **Unicode confusables / compatibility forms no longer evade the firewall.**
   The detector previously matched its signal patterns against text that had
   only been zero-width-stripped, so a homoglyph (`Іgnore`, Cyrillic I) or

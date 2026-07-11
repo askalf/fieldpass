@@ -119,44 +119,79 @@ export function stripInvisible(text) {
 }
 
 /**
- * Latin look-alikes that NFKC does NOT fold: Cyrillic and Greek homoglyphs of
- * ASCII letters. NFKC alone collapses the largest evasion surface — fullwidth
- * (U+FF01–), mathematical alphanumerics (U+1D400–), and other compatibility
- * forms — down to their ASCII skeleton; this map covers the homoglyph residue
- * NFKC leaves behind. Detection-only: folded solely to test signal patterns,
- * never shown to a user. Scoped to the letters real homoglyph payloads use and
- * kept as explicit code points, same convention as ZERO_WIDTH_RE.
+ * Latin look-alikes that NFKC does NOT fold: Cyrillic, Greek and Latin/IPA
+ * homoglyphs of ASCII letters. NFKC alone collapses the largest evasion surface
+ * — fullwidth (U+FF01–), mathematical alphanumerics (U+1D400–), and other
+ * compatibility forms — down to their ASCII skeleton; this map covers the
+ * homoglyph residue NFKC leaves behind (e.g. Cyrillic `а`, Greek `ε`, or the
+ * Latin script-g `ɡ` U+0261 that has no NFKC decomposition). Detection-only:
+ * folded solely to test signal patterns, never shown to a user, kept as explicit
+ * code points (same convention as ZERO_WIDTH_RE).
+ *
+ * This is a CURATED table of the code points real homoglyph payloads use, not
+ * the full Unicode confusables set — it is a denylist, so an exotic look-alike
+ * outside it can still evade the deterministic patterns. The LLM-judge tier
+ * (judge.mjs), which reads the un-folded text, is the backstop for that tail.
  */
 const CONFUSABLES = new Map([
   // Cyrillic lowercase
   ['а', 'a'], ['е', 'e'], ['о', 'o'], ['р', 'p'], ['с', 'c'],
   ['у', 'y'], ['х', 'x'], ['ѕ', 's'], ['і', 'i'], ['ј', 'j'],
-  ['к', 'k'], ['м', 'm'], ['ԁ', 'd'], ['һ', 'h'],
+  ['к', 'k'], ['м', 'm'], ['ԁ', 'd'], ['һ', 'h'], ['ԛ', 'q'],
+  ['ԝ', 'w'], ['ѵ', 'v'], ['ѐ', 'e'], ['ѓ', 'r'],
   // Cyrillic uppercase
   ['А', 'A'], ['В', 'B'], ['Е', 'E'], ['К', 'K'], ['М', 'M'],
   ['Н', 'H'], ['О', 'O'], ['Р', 'P'], ['С', 'C'], ['Т', 'T'],
   ['У', 'Y'], ['Х', 'X'], ['І', 'I'], ['Ј', 'J'], ['Ѕ', 'S'],
+  ['Ԛ', 'Q'], ['Ԝ', 'W'], ['Ѵ', 'V'], ['Ғ', 'F'], ['Ԍ', 'G'],
   // Greek uppercase
   ['Α', 'A'], ['Β', 'B'], ['Ε', 'E'], ['Ζ', 'Z'], ['Η', 'H'],
   ['Ι', 'I'], ['Κ', 'K'], ['Μ', 'M'], ['Ν', 'N'], ['Ο', 'O'],
   ['Ρ', 'P'], ['Τ', 'T'], ['Υ', 'Y'], ['Χ', 'X'],
   // Greek lowercase
   ['α', 'a'], ['ο', 'o'], ['ρ', 'p'], ['ι', 'i'], ['κ', 'k'],
-  ['ν', 'v'], ['χ', 'x'],
+  ['ν', 'v'], ['χ', 'x'], ['ε', 'e'], ['η', 'n'], ['τ', 't'],
+  ['υ', 'u'], ['γ', 'y'], ['ϲ', 'c'],
+  // Latin / IPA extensions that mimic ASCII and have no NFKC decomposition
+  ['ɡ', 'g'], ['ɩ', 'i'], ['ɪ', 'i'], ['ɑ', 'a'], ['ɜ', 'e'],
 ]);
 
 /**
  * Fold to a canonical form BEFORE signal matching: strip invisibles, NFKC-fold
- * compatibility code points to ASCII, then fold the Cyrillic/Greek homoglyph
- * residue. Detection-only — callers keep the ORIGINAL text for excerpts, URL /
- * email extraction, and anything shown to a human, so real hosts and benign
- * international copy are never mangled by this pass.
+ * compatibility code points to ASCII, then fold the Cyrillic/Greek/Latin
+ * homoglyph residue. Detection-only — callers keep the ORIGINAL text for
+ * excerpts, URL / email extraction, and anything shown to a human, so real
+ * hosts and benign international copy are never mangled by this pass.
  */
 export function foldConfusables(text) {
   const nfkc = stripInvisible(text).normalize('NFKC');
   let out = '';
   for (const ch of nfkc) out += CONFUSABLES.get(ch) ?? ch;
   return out;
+}
+
+/**
+ * Position-preserving variant of foldConfusables: returns the folded string
+ * ALONGSIDE a map from each folded character to the index of its source
+ * character in the invisible-stripped original. This lets the neutralizer
+ * DETECT a fence / role forgery on the folded copy yet neutralize only the exact
+ * original span it covers — emitting benign (accented / Cyrillic / CJK) page
+ * text unchanged, instead of corrupting it by shipping a globally-folded copy.
+ * Folds per source character, so an NFKC expansion (one char → several) maps
+ * every resulting char back to the same source index.
+ */
+export function foldCharMap(text) {
+  const stripped = stripInvisible(text);
+  let folded = '';
+  const map = [];
+  for (let i = 0; i < stripped.length; ) {
+    const ch = String.fromCodePoint(stripped.codePointAt(i));
+    const piece = (CONFUSABLES.get(ch) ?? ch).normalize('NFKC');
+    for (const _ of piece) map.push(i);
+    folded += piece;
+    i += ch.length;
+  }
+  return { folded, map, stripped };
 }
 
 export function matchAny(text, res) {
