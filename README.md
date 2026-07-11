@@ -87,13 +87,23 @@ the agent's context.
 ## Use it as an MCP server
 
 fieldpass ships an MCP server, so *any* MCP client — Claude Desktop, Claude Code,
-or your own agent runtime — gets a firewalled browser as three tools:
+or your own agent runtime — gets a firewalled browser as six tools:
 
 | tool | plane | what it does |
 |------|-------|--------------|
 | `picket_observe` | perception | reads a page (`url` live via CDP, or inline `html`) and returns the **safe, instruction-stripped view** — injection payloads withheld |
 | `picket_gate` | action | `ALLOW` / `STEP-UP` / `DENY` for a `navigate`/`click`/`type`/`submit` |
 | `picket_login` | identity | leases a credential persona; the secret is filled at the browser layer, never returned |
+| `picket_verify` | verification | the **anti-fabrication gate** — re-captures the real page and checks your `containsText`/`absentText`/`verdict`/`golden` claims against it, deterministically (no LLM). Culls "the page now shows X" confabulations before you act |
+| `picket_snapshot` | verification | records a named **golden** fingerprint of a known-good page (hash + verdict + structure; no raw body in the reply) |
+| `picket_replay` | verification | re-captures a page and diffs it against a golden; headline `regressedToInjection` flags a page that was clean and now trips the firewall (tamper / supply-chain) |
+
+The three verification tools back onto the deterministic replay oracle
+(`src/oracle.mjs`): they run against the **re-captured** page through the same
+governed browser, never against agent-supplied text, and — like `picket_observe`
+— never echo a withheld injection excerpt (a regressed payload is filtered out
+of the replay diff too). The golden store is shared for the life of the server
+(across HTTP sessions on the one browser) and bounded.
 
 Wire it into an MCP client (e.g. Claude Code `.mcp.json` or Claude Desktop):
 
@@ -122,7 +132,7 @@ finding categories — so the firewall can't be defeated through its own output.
 ### …or over Streamable HTTP
 
 Clients that can't spawn a stdio process — the Claude API's server-side MCP
-connector, Managed Agents, remote agent runtimes — attach to the same three
+connector, Managed Agents, remote agent runtimes — attach to the same six
 tools as a **URL-type MCP server**:
 
 ```bash
@@ -316,7 +326,9 @@ All five shipped — the prototype is now a layered product: deterministic firew
    fragments are free) are in.
 2. ~~**MCP server**~~ — **done** (`src/mcp.mjs`, `bin/fieldpass-mcp.mjs`): the
    governed browser as `picket_observe`/`picket_gate`/`picket_login` for any MCP
-   client. (Next: canon-scan the server itself.)
+   client, plus the oracle plane (`picket_verify`/`picket_snapshot`/`picket_replay`).
+   (Next: expose the session-recorder / canon-skill plane over MCP too; canon-scan
+   the server itself.)
 3. ~~**Live context-broker**~~ — **done** (`src/broker.mjs`): a pool of isolated,
    keeper-backed persona contexts (`checkout`/`checkin`) on one shared Chrome —
    per-persona session that's logged-in once and reused, a per-persona lock so
@@ -336,6 +348,7 @@ All five shipped — the prototype is now a layered product: deterministic firew
    (flagging a clean page that *regressed to an injection*), and `verifyClaims`
    asserts explicit claims (`containsText`/`absentText`/`verdict`) against the
    REAL re-captured page with evidence. The $1,500-audit philosophy, on the browser.
+   Now reachable over MCP too (`picket_verify`/`picket_snapshot`/`picket_replay`).
 
 ---
 
@@ -355,7 +368,7 @@ src/
   broker.mjs        ContextBroker: pool of keeper-backed persona contexts
   oracle.mjs        replay verification oracle: snapshot/diff/verify (deterministic)
   skill.mjs         session recorder → canon-pinnable browser skill + replay
-  mcp.mjs           MCP server: the 3 planes as picket_observe/gate/login
+  mcp.mjs           MCP server: observe/gate/login + verify/snapshot/replay
   mcp-http.mjs      Streamable HTTP transport: sessions, bearer auth, rebinding guard
   index.mjs         barrel
 demo/

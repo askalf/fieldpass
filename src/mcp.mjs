@@ -17,8 +17,12 @@
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { GovernedBrowser } from './govern.mjs';
+import { captureFromHtml, captureFromBridge } from './capture.mjs';
+import { detect } from './detect.mjs';
+import { ReplayOracle } from './oracle.mjs';
 
 const err = (text) => ({ isError: true, content: [{ type: 'text', text }] });
+const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
 
 /** Resolve a CDP base (http://host:port) to the per-session WS endpoint, routing
  *  the socket back through the base host (mirrors demo/e2e-live.mjs). */
@@ -59,6 +63,34 @@ export function createPicketServer(opts = {}) {
   });
 
   const server = new McpServer({ name: 'picket', version: opts.version || '0.1.0' });
+
+  // The oracle plane's golden store. Lives on the shared GovernedBrowser so it
+  // persists across calls and — for the HTTP transport, where every session
+  // shares one `picket` — across sessions, same lifetime as the verdict cache
+  // and keeper leases. Bounded so an untrusted client can't grow it unboundedly.
+  const oracle = picket.oracle || (picket.oracle = new ReplayOracle({ maxGoldens: opts.maxGoldens ?? 256 }));
+
+  /**
+   * Re-capture a page through the SAME governed path picket_observe uses (live
+   * CDP when configured, static parse otherwise) and return the raw Observation.
+   * The oracle plane is deterministic by design (no LLM in the verification
+   * path), so it captures directly rather than through observe()'s judge tier.
+   */
+  async function captureObs(url, html) {
+    if (!url && html == null) return { error: 'needs either `url` or `html`.' };
+    if (cdp) {
+      try {
+        const browserWSEndpoint = await bridgeEndpoint(cdp);
+        return { observation: await captureFromBridge({ url, html, browserWSEndpoint }) };
+      } catch (e) {
+        if (url) return { error: `CDP browser unreachable at ${cdp}: ${e.message}` };
+        // a live URL truly needs the browser; inline html falls back to static
+      }
+    } else if (url) {
+      return { error: 'Reading a live URL needs a CDP browser (set PICKET_CDP). Pass `html` to analyze markup inline without a browser.' };
+    }
+    return { observation: captureFromHtml(html, { url }) };
+  }
 
   server.registerTool('picket_observe', {
     title: 'Read a web page through the injection firewall',
@@ -147,6 +179,120 @@ export function createPicketServer(opts = {}) {
       return { content: [{ type: 'text', text: `leased ${JSON.stringify(lease)} — no secret material in this handle` }] };
     } catch (e) {
       return err(e.message);
+    }
+  });
+
+  // ── Oracle plane: deterministic anti-fabrication verification ────────────────
+
+  server.registerTool('picket_verify', {
+    title: 'Verify a claim about a page against the REAL re-captured page',
+    description:
+      'The anti-fabrication gate. Re-capture a page through the governed browser and check your claims about it against reality — deterministically, no LLM (a model asked "did it work?" will confabulate "yes"). ' +
+      'Use it to verify your own "the page now shows X" / "the injection is gone" claims before you act on them. ' +
+      'Pass any of: `containsText` (strings that must appear in the VISIBLE page), `absentText` (strings that must NOT appear anywhere), `verdict` (the firewall verdict you expect), or `golden` (a name from picket_snapshot to match). Returns per-claim pass/fail with evidence. Never echoes withheld injection text.',
+    inputSchema: {
+      url: z.string().url().optional().describe('URL to re-capture through the governed browser (needs a CDP endpoint)'),
+      html: z.string().optional().describe('Inline HTML to verify instead of fetching a URL'),
+      containsText: z.array(z.string()).optional().describe('strings that MUST appear in the visible page (a fabricated "shows X" fails)'),
+      absentText: z.array(z.string()).optional().describe('strings that must NOT appear anywhere in the page'),
+      verdict: z.enum(['allow', 'flag', 'quarantine', 'block']).optional().describe('the firewall verdict you expect'),
+      golden: z.string().optional().describe('name of a golden recorded via picket_snapshot to match against'),
+      maxNodeDelta: z.number().int().nonnegative().optional().describe('with `golden`: allowed ± node-count drift'),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  }, async ({ url, html, containsText, absentText, verdict, golden, maxNodeDelta }) => {
+    if (!containsText && !absentText && !verdict && !golden) {
+      return err('picket_verify needs at least one claim: containsText, absentText, verdict, or golden.');
+    }
+    if (golden && !oracle.has(golden)) return err(`no golden named "${golden}" — record one with picket_snapshot first.`);
+    const { observation, error } = await captureObs(url, html);
+    if (error) return err(`picket_verify ${error}`);
+    try {
+      const det = detect(observation);
+      const r = oracle.verify(observation, { containsText, absentText, verdict, golden, maxNodeDelta, detection: det });
+      const banner =
+        `picket_verify: ${r.pass ? 'PASS' : 'FAIL'} ` +
+        `(${r.results.filter((x) => x.pass).length}/${r.results.length} claims) · verdict: ${r.verdict}`;
+      // results carry only the caller's own claim strings + generic evidence —
+      // never the raw text of a withheld node.
+      return { content: [{ type: 'text', text: banner }, { type: 'text', text: `results: ${JSON.stringify(r.results)}` }] };
+    } catch (e) {
+      return err(`verify failed: ${e.message}`);
+    }
+  });
+
+  server.registerTool('picket_snapshot', {
+    title: 'Record a golden fingerprint of a page for later replay',
+    description:
+      'Capture a known-good page state as a named "golden" fingerprint (visible-text hash, verdict, structure — no raw content stored in the reply). Later call picket_replay to detect drift, or picket_verify with `golden` to assert a page still matches. The golden store is shared for the life of the server and bounded.',
+    inputSchema: {
+      name: z.string().min(1).describe('the name to store this golden under'),
+      url: z.string().url().optional().describe('URL to capture as the golden (needs a CDP endpoint)'),
+      html: z.string().optional().describe('Inline HTML to capture as the golden'),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  }, async ({ name, url, html }) => {
+    const { observation, error } = await captureObs(url, html);
+    if (error) return err(`picket_snapshot ${error}`);
+    try {
+      const s = oracle.record(name, observation);
+      // fingerprint metadata only — never the visible-text body (a visible
+      // injection would otherwise leak here).
+      const fingerprint = {
+        name, url: s.url, title: s.title, verdict: s.verdict, trifecta: s.trifecta,
+        textHash: s.textHash, nodeCount: s.nodeCount, visibleCount: s.visibleCount,
+        hiddenCount: s.hiddenCount, capturedBy: s.capturedBy,
+      };
+      return { content: [{ type: 'text', text: `golden "${name}" recorded · verdict: ${s.verdict} · textHash: ${s.textHash} · ${oracle.goldens.size} golden(s) held` }, { type: 'text', text: JSON.stringify(fingerprint) }] };
+    } catch (e) {
+      return err(`snapshot failed: ${e.message}`);
+    }
+  });
+
+  server.registerTool('picket_replay', {
+    title: 'Re-capture a page and diff it against a recorded golden',
+    description:
+      'Re-capture a page and compare it to a golden recorded with picket_snapshot. The headline is `regressedToInjection`: a page that was clean and now trips the firewall — a tamper / supply-chain signal. Returns the field-level changes and the added/removed VISIBLE lines (any line belonging to a withheld injection is filtered out, so this never leaks payload text).',
+    inputSchema: {
+      name: z.string().min(1).describe('the golden name to replay against'),
+      url: z.string().url().optional().describe('URL to re-capture (needs a CDP endpoint)'),
+      html: z.string().optional().describe('Inline HTML to re-capture'),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: true },
+  }, async ({ name, url, html }) => {
+    if (!oracle.has(name)) return err(`no golden named "${name}" — record one with picket_snapshot first.`);
+    const { observation, error } = await captureObs(url, html);
+    if (error) return err(`picket_replay ${error}`);
+    try {
+      const det = detect(observation);
+      const diff = oracle.replay(name, observation);
+      // Filter any added/removed line that is (part of) a withheld node's text,
+      // so a regression that introduced a VISIBLE injection can't leak its
+      // payload through the diff. The security booleans still fire regardless.
+      const withheld = det.findings
+        .filter((f) => f.action === 'block' || f.action === 'quarantine')
+        .map((f) => norm((observation.nodes.find((n) => n.id === f.nodeId) || {}).text))
+        .filter(Boolean);
+      const leaks = (line) => { const n = norm(line); return !!n && withheld.some((w) => w.includes(n) || n.includes(w)); };
+      const safeAdded = diff.addedText.filter((l) => !leaks(l));
+      const safeRemoved = diff.removedText.filter((l) => !leaks(l));
+      const out = {
+        match: diff.match,
+        regressedToInjection: diff.regressedToInjection,
+        verdictChanged: diff.verdictChanged,
+        trifectaAppeared: diff.trifectaAppeared,
+        changes: diff.changes,
+        addedText: safeAdded,
+        removedText: safeRemoved,
+        withheldLines: (diff.addedText.length - safeAdded.length) + (diff.removedText.length - safeRemoved.length),
+      };
+      const banner =
+        `picket_replay "${name}": ${diff.match ? 'MATCH' : 'DRIFT'}` +
+        (diff.regressedToInjection ? ' · ⚠ REGRESSED TO INJECTION' : '') +
+        ` · verdict ${diff.verdictChanged ? 'CHANGED' : 'same'} · +${safeAdded.length}/-${safeRemoved.length} visible line(s)`;
+      return { content: [{ type: 'text', text: banner }, { type: 'text', text: JSON.stringify(out) }] };
+    } catch (e) {
+      return err(`replay failed: ${e.message}`);
     }
   });
 
