@@ -3,7 +3,7 @@
  *
  * An indirect-prompt-injection firewall + action gate that wraps a CDP browser
  * so agents can read untrusted web pages without being hijacked by them.
- * Part of the Own Your Stack agent-security suite: warden · keeper · canon · cordon.
+ * Part of the Own Your Stack agent-security suite: redstamp · strongroom · truecopy · cordon.
  */
 
 export { GovernedBrowser, KeeperStub } from './govern.mjs';

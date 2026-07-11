@@ -1,16 +1,16 @@
 # Security Policy
 
-`picket` is a defensive security tool. If you find a way to bypass the firewall —
-a prompt-injection payload it fails to catch, a way to leak quarantined content
-into the model view, an action-gate or credential-injection escape — that's a
-vulnerability we want to hear about.
+`fieldpass` (formerly `picket`) is a defensive security tool. If you find a way
+to bypass the firewall — a prompt-injection payload it fails to catch, a way to
+leak quarantined content into the model view, an action-gate or
+credential-injection escape — that's a vulnerability we want to hear about.
 
 ## Reporting
 
 Please report privately, not in a public issue:
 
-- Open a [GitHub security advisory](https://github.com/askalf/picket/security/advisories/new), or
-- Email **hello@askalf.org** with `picket security` in the subject.
+- Open a [GitHub security advisory](https://github.com/askalf/fieldpass/security/advisories/new), or
+- Email **hello@askalf.org** with `fieldpass security` in the subject.
 
 Include a minimal reproduction (a page/payload + the expected vs. actual verdict).
 We aim to acknowledge within 72 hours, keep you updated while we work on it, and
