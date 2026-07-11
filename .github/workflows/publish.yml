@@ -7,7 +7,11 @@ name: Publish to npm
 # fieldpass has no auto-release workflow — tags + GitHub releases are cut
 # manually. Bump + tag + release first, then dispatch this (--ref main, NEVER
 # master) to push that version to npm. Running it without a matching
-# tag/release leaves git and npm out of sync.
+# tag/release leaves git and npm out of sync (npm-drift.yml flags that state
+# the next morning).
+#
+# Idempotent: if npm already has package.json's version, the run exits green
+# without publishing — safe to re-dispatch any time.
 #
 # Tests run without the optional CDP/Claude deps, mirroring ci.yml.
 
@@ -30,8 +34,25 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
+      - name: Skip if npm already has this version
+        id: gate
+        run: |
+          set -euo pipefail
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          published=$(npm view "${name}@${version}" version 2>/dev/null || echo "")
+          if [ "$published" = "$version" ]; then
+            echo "npm already has ${name}@${version}; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - run: npm ci --omit=optional --no-audit --no-fund
+        if: steps.gate.outputs.skip != 'true'
       - run: npm test
+        if: steps.gate.outputs.skip != 'true'
       # Auth = OIDC via the npmjs.com trusted publisher bound to THIS workflow
       # filename (publish.yml) — no NPM_TOKEN. Provenance is automatic under OIDC.
       - run: npm publish --access public
+        if: steps.gate.outputs.skip != 'true'
