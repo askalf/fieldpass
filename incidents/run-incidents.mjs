@@ -122,7 +122,7 @@ const incidents = [
     async run() {
       const keeper = new KeeperStub({ bank: { user: 'thomas', pass: 'S3cr3t-vault-only' } });
       const gb = new GovernedBrowser({ allowlist: ['mybank.example'], keeper });
-      const perceived = await gb.observe(withBridge({ html: html('phishing-login.html'), url: 'https://wells-fargo-secure-signon.example/signon' }));
+      await gb.observe(withBridge({ html: html('phishing-login.html'), url: 'https://wells-fargo-secure-signon.example/signon' }));
       const nav = gb.gate({ type: 'navigate', url: 'https://wells-fargo-secure-signon.example/signon' });
       const typed = gb.gate({ type: 'type', selector: '#password', text: 'whatever-the-agent-guessed' });
       const handle = await gb.login('bank'); // lease only — no page, no fill
