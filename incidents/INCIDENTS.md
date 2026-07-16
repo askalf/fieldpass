@@ -70,3 +70,7 @@ Evidence:
 
 *Fixtures are synthetic; attacker hosts are reserved `.example` names. Reproduce with*
 `node incidents/run-incidents.mjs` *(add `PICKET_CDP=http://127.0.0.1:9222` to run through real Chrome).*
+
+> **This file is a generated snapshot** — regenerate it with `npm run demo:incidents` after any
+> change to the detector or fixtures. The verdicts are enforced for real in CI by
+> `test/incidents.test.mjs`, which is the source of truth; this document is a human-readable receipt.
