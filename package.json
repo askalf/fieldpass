@@ -21,6 +21,7 @@
     "demo:broker": "node demo/broker-demo.mjs",
     "demo:oracle": "node demo/oracle-demo.mjs",
     "demo:skill": "node demo/skill-demo.mjs",
+    "demo:incidents": "node incidents/run-incidents.mjs",
     "mcp": "node bin/picket-mcp.mjs",
     "scan": "node bin/picket.mjs"
   },

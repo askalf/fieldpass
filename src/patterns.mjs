@@ -16,9 +16,10 @@ export const INSTRUCTION_TO_AI = [
   /\byou\s+are\s+now\b/i,
   /\bnew\s+(instructions?|task|directive|system\s+prompt|rules?)\b/i,
   /\bfrom\s+now\s+on\b/i,
-  /\bdo\s+not\s+(tell|inform|alert|notify|warn|mention\s+(this\s+)?to)\s+(the\s+)?(user|human|operator|owner)/i,
+  /\bdo\s+not\s+(tell|inform|alert|notify|warn|reveal|disclose|surface|mention|report|say|indicate)\b[^.]{0,30}\b(the\s+)?(user|human|operator|owner)\b/i,
   /\b(reveal|print|show|output|repeat|echo|disclose)\s+(me\s+)?(your|the)\s+(system\s+)?(prompt|instructions?|rules?|configuration)/i,
   /\boverride\b[^.]{0,40}\b(instruction|policy|safety|guardrail|restriction)/i,
+  /\bsupersedes?\b[^.]{0,30}\byour\b[^.]{0,25}\b(instructions?|directions?|prompt|policy|safety|guardrails?|restrictions?|rules?)/i,
   /\bact\s+as\s+(a\s+|an\s+)?(dan|jailbreak|unrestricted|developer\s+mode)\b/i,
   /\b(assistant|ai|agent|model|chatgpt|claude|copilot)\s*[:>]/i,
   /\bimportant\s*[:!]\s*(instruction|message|note)\s+(for|to)\s+(the\s+)?(ai|assistant|agent|model)/i,
@@ -35,9 +36,10 @@ export const INSTRUCTION_TO_AI = [
 export const HARD_INSTRUCTION = [
   /\bignore\s+(all\s+|any\s+|the\s+|your\s+)*(previous|prior|above|earlier|preceding|former)\s+(instructions?|prompts?|context|messages?|directions?)/i,
   /\bdisregard\s+(all\s+|the\s+|any\s+|your\s+)*(previous|prior|above|earlier|system|instructions?|context)/i,
-  /\bdo\s+not\s+(tell|inform|alert|notify|warn|mention\s+(this\s+)?to)\s+(the\s+)?(user|human|operator|owner)/i,
+  /\bdo\s+not\s+(tell|inform|alert|notify|warn|reveal|disclose|surface|mention|report|say|indicate)\b[^.]{0,30}\b(the\s+)?(user|human|operator|owner)\b/i,
   /\b(reveal|print|show|output|repeat|echo|disclose)\s+(me\s+)?(your|the)\s+(system\s+)?(prompt|instructions?|rules?|configuration)/i,
   /\boverride\b[^.]{0,40}\b(instruction|policy|safety|guardrail|restriction)/i,
+  /\bsupersedes?\b[^.]{0,30}\byour\b[^.]{0,25}\b(instructions?|directions?|prompt|policy|safety|guardrails?|restrictions?|rules?)/i,
   /\bact\s+as\s+(a\s+|an\s+)?(dan|jailbreak|unrestricted|developer\s+mode)\b/i,
   /\bimportant\s*[:!]\s*(instruction|message|note)\s+(for|to)\s+(the\s+)?(ai|assistant|agent|model)/i,
 ];
@@ -71,6 +73,11 @@ export const EXFIL_VERB = [
 export const SENSITIVE = [
   /\b(cookies?|session\s*(id|token)?|passwords?|passwd|secrets?|api[\s_-]?keys?|access[\s_-]?tokens?|bearer|credentials?|private\s+keys?|ssh\s+keys?|\.env|env\s+vars?|keeper|vault|wallet|seed\s+phrase|ssn|social\s+security|credit\s+card|cvv)\b/i,
   /\b(contents?|copy|dump)\s+of\s+(the\s+)?(memory|history|conversation|file|inbox|account|page|dom)\b/i,
+  // Personal-data collections an agentic browser handles (Gmail/Calendar/Contacts…).
+  // Gated behind a THIRD-PERSON possessive ("the user's emails", "their inbox") so it
+  // fires on a request for SOMEONE ELSE'S data — the exfil target an injection names —
+  // and not on a page addressing its reader ("check your email", "email us at…").
+  /\b(the\s+(user|customer|owner|account\s+holder)'?s?|their|his|her)\s+(most\s+recent\s+|recent\s+|latest\s+|saved\s+|stored\s+|private\s+|personal\s+)*(e-?mails?|inbox|mailbox|calendar(\s+(entries|events?|invites?))?|contacts?|address\s+book|messages?|dms?|(chat|message|browsing|search|location)\s+history)\b/i,
 ];
 
 /**
