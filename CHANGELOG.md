@@ -4,6 +4,8 @@ All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-16
+
 ### Added
 
 - **Incidents suite (`incidents/`, `npm run demo:incidents`)** — the headline
