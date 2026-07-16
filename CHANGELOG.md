@@ -4,6 +4,31 @@ All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **Incidents suite (`incidents/`, `npm run demo:incidents`)** — the headline
+  agentic-browser failures of 2025–2026 reproduced as offline fixtures and driven
+  through fieldpass, with shareable receipts written to `incidents/INCIDENTS.md`:
+  CometJacking-style page-borne exfil, PleaseFix-style authenticated-session
+  secret theft, invisible (white-on-white / offscreen) instructions, the
+  Scamlexity counterfeit-store checkout, and agent-driven credential phishing.
+  Runs static (browserless, CI) or through real Chrome with `PICKET_CDP`. Locked
+  in as a regression + false-positive suite (`test/incidents.test.mjs`).
+
+### Changed
+
+- **Detector coverage** — dogfooding the incidents suite surfaced that two marquee
+  attacks landed at `quarantine` (payload withheld, attack stopped) rather than the
+  stronger `block`, because their instruction / sensitive-data legs weren't matched.
+  The "sensitive data" leg now recognizes the personal-data collections an agentic
+  browser actually handles — a **third-person** reference to *the user's* emails /
+  inbox / calendar / contacts / message-or-browsing history (gated so a page's own
+  "check your email" / "email us at…" copy still can't trip it). The "instruction"
+  leg now catches "supersede **your** … instructions/safety/policy" and a broader
+  set of "do not \<tell/reveal/surface/mention\> … the user" phrasings. Both
+  CometJacking and PleaseFix now resolve to a lethal-trifecta **BLOCK**; the full
+  false-positive corpus (real Wikipedia + benign look-alikes) stays clean.
+
 ## [0.4.1] — 2026-07-11
 
 ### Changed

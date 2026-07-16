@@ -57,8 +57,9 @@ by a security layer the rest of the field doesn't have.
 
 ```bash
 npm install
-npm test               # 64 unit tests, no browser needed
+npm test               # 142 unit tests, no browser needed
 npm run demo           # the pwn-vs-governed showcase + writes demo/REPORT.md
+npm run demo:incidents   # real 2025–26 browser-agent incidents, reproduced + stopped
 npm run demo:escalation  # deterministic miss → LLM-judge catch
 npm run demo:mcp         # drive the governed browser over the MCP protocol
 npm run demo:oracle      # cull an agent's browser fabrications, deterministically
@@ -83,6 +84,24 @@ The governed run also exercises the **action gate** (off-allowlist navigation
 denied, "approve the wire transfer" stepped up, credential typing refused) and a
 **strongroom-backed login** that returns an opaque lease — the secret never enters
 the agent's context.
+
+### The incidents it would have stopped
+
+`npm run demo:incidents` reproduces the headline agentic-browser failures of
+2025–2026 as offline fixtures and drives each one through fieldpass — the
+receipts are written to [`incidents/INCIDENTS.md`](incidents/INCIDENTS.md):
+
+| Incident (as reported) | Plane | fieldpass verdict |
+|---|---|---|
+| **CometJacking** — a page turns the assistant into a data thief (Zenity/LayerX) | perception | **BLOCK** · payload withheld |
+| **PleaseFix** — hijack an authenticated session to steal local secrets (Zenity Labs) | perception | **BLOCK** · sink withheld |
+| Invisible instructions — white-on-white / offscreen text only the agent sees (Unit 42) | perception | **BLOCK** |
+| **Scamlexity** — agent auto-buys on a counterfeit store, no confirmation (Guardio Labs) | action | **STEP-UP** required |
+| Agent types banking credentials into a phishing page (Guardio) | identity | **DENIED** · secret stays in the vault |
+
+Add `PICKET_CDP=http://127.0.0.1:9222` to run them through real Chrome (the
+white-on-white leg then resolves via computed styles). Fixtures are synthetic and
+attacker hosts are reserved `.example` names — nothing points at a real target.
 
 ---
 
