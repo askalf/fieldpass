@@ -87,7 +87,8 @@ export class GovernedBrowser {
   _log(entry) { this.audit.push({ ...entry }); return entry; }
 
   /**
-   * Perception plane. Accepts either static HTML or a live bridge target, runs
+   * Perception plane. Accepts static HTML, a live bridge target, or a
+   * caller-owned `page` (a broker checkout, an agent's active session), runs
    * it through the firewall, and returns the safe, model-facing view.
    * @returns {Promise<{observation, detection, decision, safe}>}
    */
@@ -97,7 +98,11 @@ export class GovernedBrowser {
     // computed styles resolve class-based hiding. The static parser is the
     // browserless fallback (CI, offline demos), not a silent override that
     // would bypass the whole reason the bridge exists on a hostile page.
-    const hasBridge = input.browserWSEndpoint != null || input.browserURL != null;
+    // A caller-owned `page` is a bridge target too: captureFromBridge reuses
+    // it as-is (no navigation when no url/html is given, lifecycle untouched),
+    // so an agent's CURRENT page state reads through the live extractor —
+    // without this, observe({page}) fell through to captureFromHtml(undefined).
+    const hasBridge = input.browserWSEndpoint != null || input.browserURL != null || input.page != null;
     const observation = hasBridge
       ? await captureFromBridge(input)
       : captureFromHtml(input.html, { url: input.url });
