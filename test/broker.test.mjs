@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ContextBroker } from '../src/broker.mjs';
-import { KeeperStub } from '../src/govern.mjs';
+import { GovernedBrowser, KeeperStub } from '../src/govern.mjs';
 import { captureFromBridge } from '../src/capture.mjs';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -130,4 +130,23 @@ test('captureFromBridge reuses a provided page (broker session) without touching
   assert.deepEqual(page.gotos, ['https://acme.example/p']);
   assert.equal(obs.nodes.length, 1);
   assert.equal(obs.origin, 'https://acme.example');
+});
+
+test('observe({page}) routes through the live-capture path, not the static parser', async () => {
+  const page = {
+    gotos: [],
+    async goto(u) { this.gotos.push(u); },
+    async evaluate() {
+      return { title: 'Live', nodes: [{ id: 'n0', text: 'hello from the live page', source: 'text', tag: 'p', hidden: false, hiddenReasons: [] }] };
+    },
+    url: () => 'https://live.example/session',
+  };
+  const gov = new GovernedBrowser();
+  const res = await gov.observe({ page });
+  // Regression: a bare {page} used to miss the hasBridge check and fall
+  // through to captureFromHtml(undefined). It must read the LIVE page.
+  assert.equal(res.observation.capturedBy, 'cdp');
+  assert.equal(res.observation.url, 'https://live.example/session');
+  assert.deepEqual(page.gotos, []); // current state read as-is, no navigation
+  assert.ok(res.safe.text.includes('hello from the live page'));
 });
