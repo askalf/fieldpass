@@ -4,6 +4,19 @@ All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-07-18
+
+### Fixed
+
+- **`observe({page})` now routes through the live-capture path** (#56). A
+  caller-owned page (a `ContextBroker` checkout, an agent's active browser
+  session) passed alone used to miss the bridge check and fall through to the
+  static parser with no HTML — it now reads the live session via the CDP
+  extractor: computed-style hidden detection, shadow-root descent, no
+  navigation, lifecycle untouched. This is the seam askalf's fleet
+  `browser_use` tool uses to firewall its current page state in place.
+- Dropped an unused binding in the phishing-credentials incident fixture (#55).
+
 ## [0.5.0] — 2026-07-16
 
 ### Added
