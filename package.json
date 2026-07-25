@@ -68,5 +68,10 @@
   },
   "devDependencies": {
     "fast-check": "^4.8.0"
+  },
+  "overrides": {
+    "fast-uri": "^3.1.4",
+    "@hono/node-server": "^2.0.5",
+    "brace-expansion": "^1.1.16"
   }
 }
