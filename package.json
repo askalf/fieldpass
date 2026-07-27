@@ -67,6 +67,7 @@
     "access": "public"
   },
   "devDependencies": {
+    "@jazzer.js/core": "4.0.0",
     "fast-check": "^4.8.0"
   },
   "overrides": {

@@ -1,0 +1,56 @@
+# ClusterFuzzLite — continuous fuzzing of fieldpass's trust boundary: the code
+# that consumes UNTRUSTED page content. fieldpass is an indirect-prompt-injection
+# firewall, so the bytes it parses are written by the attacker it defends
+# against, and a detector that can be crashed by a crafted page fails OPEN —
+# the injection flows straight through to the agent's model. Three targets:
+#   capture_detect   — captureFromHtml -> detect over raw hostile HTML; the
+#                       pipeline must never throw, and the verdict must stay on
+#                       the allow/flag/quarantine/block lattice with a finite score.
+#   neutralize_fence — the provenance fence around untrusted text: exactly one
+#                       BEGIN and one END marker survive whatever the page says,
+#                       and anything scored quarantine/block is replaced by a
+#                       placeholder rather than emitted to the model.
+#   action_gate      — the agent -> page gate, fuzzed as if the agent is already
+#                       under an injection's influence: unknown action types can
+#                       only ever be denied and navigation may never leave the
+#                       allowlist.
+# Runs weekly + on demand; a discovered crash fails the job and is uploaded as
+# an artifact. Targets live in ./fuzz, built by .clusterfuzzlite/build.sh
+# (Jazzer.js). OpenSSF Scorecard credits the Fuzzing check from the
+# .clusterfuzzlite/ config.
+name: ClusterFuzzLite
+
+on:
+  schedule:
+    - cron: '43 4 * * 1' # weekly, Monday 04:43 UTC (staggered off the :00 grid)
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  Fuzzing:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # JavaScript (Jazzer.js) has no native sanitizer — OSS-Fuzz rejects
+        # address/memory/undefined for JS ("cannot be fuzzed with sanitizers"),
+        # and the action's config rejects `none`. `coverage` is the value real
+        # JS ClusterFuzzLite projects use with this action version.
+        sanitizer: [coverage]
+    steps:
+      - name: Build fuzzers (${{ matrix.sanitizer }})
+        id: build
+        uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          language: javascript
+          sanitizer: ${{ matrix.sanitizer }}
+      - name: Run fuzzers (${{ matrix.sanitizer }})
+        id: run
+        uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          fuzz-seconds: 300
+          mode: 'batch'
+          language: javascript
+          sanitizer: ${{ matrix.sanitizer }}
