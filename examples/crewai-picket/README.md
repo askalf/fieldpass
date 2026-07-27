@@ -37,6 +37,7 @@ the planning step extracts the payment link from.
 | `_plumbing_check.py` | the same picket wiring exercised with a raw MCP client, no CrewAI (layer test) |
 | `evidence/` | captured stdout + exact version provenance from a real run |
 | `requirements.txt` | pinned CrewAI version (the `mcp` client library rides in with it) |
+| `osv-scanner.toml` | scoped OSV ignore: one unfixable transitive advisory in a demo-only dep (see the file for why) |
 
 ## Run
 
