@@ -2,11 +2,17 @@
 
 > _**Formerly `picket`.** Renamed to `fieldpass` for the npm release; the GitHub repo redirects and the legacy `picket`/`picket-mcp` CLI aliases keep working. MCP tool names (`picket_observe`/`picket_gate`/`picket_login`) and `PICKET_*` env vars are unchanged for compatibility._
 
+[![npm](https://img.shields.io/npm/v/@askalf/fieldpass?color=blue&label=npm)](https://www.npmjs.com/package/@askalf/fieldpass)
 [![ci](https://github.com/askalf/fieldpass/actions/workflows/ci.yml/badge.svg)](https://github.com/askalf/fieldpass/actions/workflows/ci.yml)
+[![codeql](https://github.com/askalf/fieldpass/actions/workflows/codeql.yml/badge.svg)](https://github.com/askalf/fieldpass/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/askalf/fieldpass/badge)](https://scorecard.dev/viewer/?uri=github.com/askalf/fieldpass)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![downloads](https://img.shields.io/npm/dm/@askalf/fieldpass?color=blue&label=downloads)](https://www.npmjs.com/package/@askalf/fieldpass)
 [![runtime deps](https://img.shields.io/badge/runtime%20deps-3-brightgreen)](package.json)
 [![why this matters](https://img.shields.io/badge/why%20this%20matters-the%20lethal%20trifecta-8a2be2)](docs/the-lethal-trifecta-in-the-browser.md)
+<!-- OpenSSF Best Practices — uncomment once enrolled at https://www.bestpractices.dev and replace PROJECT_ID:
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/PROJECT_ID/badge)](https://www.bestpractices.dev/projects/PROJECT_ID)
+-->
 
 > An indirect-prompt-injection **firewall + action gate** that wraps a CDP
 > browser, so an agent can read untrusted web pages without being hijacked by
@@ -17,6 +23,10 @@
 > [truecopy](https://github.com/askalf/truecopy) skills ·
 > [strongroom](https://github.com/askalf/strongroom) secrets) and with
 > [cordon](https://github.com/askalf/cordon) (prompts/PII).
+> Related: [plumbline](https://github.com/askalf/plumbline) watches the
+> **trajectory** — out-of-band and read-only, scoring the whole action
+> sequence against the declared job; a monitor above the in-path layers,
+> never a blocker.
 
 *(Named for a guard posted at the forward boundary — the same role-noun
 convention as redstamp / strongroom / truecopy. Works in front of any CDP / Chrome
