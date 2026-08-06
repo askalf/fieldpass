@@ -10,6 +10,9 @@
 [![downloads](https://img.shields.io/npm/dm/@askalf/fieldpass?color=blue&label=downloads)](https://www.npmjs.com/package/@askalf/fieldpass)
 [![runtime deps](https://img.shields.io/badge/runtime%20deps-3-brightgreen)](package.json)
 [![why this matters](https://img.shields.io/badge/why%20this%20matters-the%20lethal%20trifecta-8a2be2)](docs/the-lethal-trifecta-in-the-browser.md)
+<!-- fieldpass on Glama — uncomment once the server is indexed in the directory (submit at https://glama.ai/mcp/servers; glama.json is already in place):
+[![fieldpass on Glama](https://glama.ai/mcp/servers/askalf/fieldpass/badges/card.svg)](https://glama.ai/mcp/servers/askalf/fieldpass)
+-->
 <!-- OpenSSF Best Practices — uncomment once enrolled at https://www.bestpractices.dev and replace PROJECT_ID:
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/PROJECT_ID/badge)](https://www.bestpractices.dev/projects/PROJECT_ID)
 -->
