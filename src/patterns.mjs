@@ -21,7 +21,14 @@ export const INSTRUCTION_TO_AI = [
   /\boverride\b[^.]{0,40}\b(instruction|policy|safety|guardrail|restriction)/i,
   /\bsupersedes?\b[^.]{0,30}\byour\b[^.]{0,25}\b(instructions?|directions?|prompt|policy|safety|guardrails?|restrictions?|rules?)/i,
   /\bact\s+as\s+(a\s+|an\s+)?(dan|jailbreak|unrestricted|developer\s+mode)\b/i,
-  /\b(assistant|ai|agent|model|chatgpt|claude|copilot)\s*[:>]/i,
+  // Role-label prefix, the "Assistant: <do this>" forgery. Anchored to the
+  // start of a line or a sentence: unanchored, the bare label matched ordinary
+  // technical prose wherever one of these words happened to precede a colon —
+  // `User-Agent: curl/7.64.1` and `...ordered encoding model:` both quarantined
+  // RFC 9110. The real forgery opens a line or follows a sentence break; the
+  // imperative that would follow it is independently covered by the patterns
+  // above, so anchoring costs no coverage on the attack shape.
+  /(?:^|[\r\n]|[.!?]\s)\s*(assistant|ai|agent|model|chatgpt|claude|copilot)\s*[:>]/i,
   /\bimportant\s*[:!]\s*(instruction|message|note)\s+(for|to)\s+(the\s+)?(ai|assistant|agent|model)/i,
 ];
 

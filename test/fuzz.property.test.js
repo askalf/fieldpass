@@ -100,13 +100,32 @@ test('property: url/email/host extractors never throw on arbitrary bytes', () =>
   assert.equal(hostOf('https://ACME-Vendor.Example./x'), 'acme-vendor.example');
 });
 
-test('property: zero-width smuggling anywhere in a node always produces a finding', () => {
-  const arbLetters = fc.string({ unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz '), minLength: 1, maxLength: 40 });
+// NARROWED (deliberate change to a security property, see PR): this generated
+// its text from an alphabet that INCLUDED the space character, so it also
+// asserted that pure whitespace + an invisible char must flag. That is not
+// smuggling — there is no payload — and it is the exact shape of layout and
+// accessibility markup on real pages (visibility:hidden spans holding
+// zero-width break opportunities), which quarantined
+// en.wikipedia.org/wiki/Social_engineering_(security). The invariant worth
+// holding is that zero-width inserted into SUBSTANTIVE text always flags; the
+// companion property below pins the other side so the gap can't widen.
+test('property: zero-width smuggling inside substantive text always produces a finding', () => {
+  const arbLetters = fc
+    .string({ unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz '), minLength: 1, maxLength: 40 })
+    .filter((s) => s.trim().length > 0);
   fc.assert(fc.property(arbLetters, fc.integer({ min: 0, max: 40 }), fc.constantFrom(...ZW), (text, pos, zw) => {
     const i = Math.min(pos, text.length);
     const f = analyzeNode(mkNode(0, text.slice(0, i) + zw + text.slice(i)), ctx);
     assert.ok(f, 'zero-width smuggling must produce a finding');
     assert.ok(f.categories.includes('zero-width-smuggling'));
+  }), runs(200));
+});
+
+test('property: a node with no substance is never a zero-width finding', () => {
+  const arbBlank = fc.string({ unit: fc.constantFrom(' ', '\t', '\n'), minLength: 0, maxLength: 8 });
+  fc.assert(fc.property(arbBlank, fc.array(fc.constantFrom(...ZW), { minLength: 1, maxLength: 6 }), (blank, zws) => {
+    const f = analyzeNode(mkNode(0, blank + zws.join('') + blank), ctx);
+    assert.equal(f, null, 'invisible-only text carries no payload and must not flag');
   }), runs(200));
 });
 
