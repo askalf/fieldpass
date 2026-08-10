@@ -4,8 +4,15 @@
  * injection and print a verdict.
  *
  *   picket scan ./page.html
+ *   picket scan https://example.com                       (static fetch)
  *   picket scan https://example.com --browser http://127.0.0.1:9222
  *   picket scan ./page.html --json
+ *
+ * A URL with no CDP browser configured is fetched and parsed statically.
+ * That path cannot resolve computed styles, so CSS-based hiding
+ * (white-on-white, offscreen, class-driven display:none) is not detected
+ * as hidden — inline styles and structural hiding still are. Pass
+ * --browser for full fidelity; the header line always says which was used.
  *
  * Exit codes (CI-friendly, same spirit as canon): 0 allow/flag · 1 quarantine · 2 block.
  */
@@ -28,15 +35,36 @@ if (cmd !== 'scan' || !target) {
 
 const EXIT = { allow: 0, flag: 0, quarantine: 1, block: 2 };
 const isUrl = /^https?:\/\//i.test(target);
+const browserURL = flag('--browser') || process.env.PICKET_BROWSER_URL || process.env.PICKET_CDP;
 
-const obs = isUrl
-  ? await captureFromBridge({ url: target, browserURL: flag('--browser') || process.env.PICKET_BROWSER_URL })
-  : captureFromHtml(readFileSync(target, 'utf8'), { url: flag('--url') || 'file://' + target });
+let obs;
+if (isUrl && browserURL) {
+  obs = await captureFromBridge({ url: target, browserURL });
+} else if (isUrl) {
+  // No CDP endpoint: fetch and parse statically rather than handing
+  // puppeteer an undefined endpoint (which threw a bare assert stack).
+  let res;
+  try {
+    res = await fetch(target, { redirect: 'follow', headers: { 'user-agent': 'picket-scan' } });
+  } catch (e) {
+    console.error(`fetch failed: ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(65);
+  }
+  if (!res.ok) {
+    console.error(`fetch failed: HTTP ${res.status} ${res.statusText}`);
+    process.exit(65);
+  }
+  obs = captureFromHtml(await res.text(), { url: target });
+} else {
+  obs = captureFromHtml(readFileSync(target, 'utf8'), { url: flag('--url') || 'file://' + target });
+}
 
 const d = detect(obs);
 
+const staticOnUrl = isUrl && !browserURL;
+
 if (has('--json')) {
-  const out = { target, verdict: d.verdict, trifecta: d.trifecta, summary: d.summary, findings: d.findings };
+  const out = { target, capturedBy: obs.capturedBy, verdict: d.verdict, trifecta: d.trifecta, summary: d.summary, findings: d.findings };
   if (has('--safe')) out.safeView = buildSafeObservation(obs, d).text;
   console.log(JSON.stringify(out, null, 2));
   process.exit(EXIT[d.verdict] ?? 0);
@@ -45,6 +73,9 @@ if (has('--json')) {
 const ICON = { critical: '🟥', high: '🟧', medium: '🟨', low: '🟦', info: '⬜' };
 console.log(`\npicket scan — ${target}`);
 console.log(`captured: ${obs.capturedBy} · nodes: ${obs.nodes.length}`);
+if (staticOnUrl) {
+  console.log('note: static fetch — CSS-based hiding is not resolved. Pass --browser <cdp-url> for computed styles.');
+}
 console.log(`\nVERDICT: ${d.verdict.toUpperCase()}${d.trifecta ? '  ⚠ LETHAL TRIFECTA' : ''}`);
 console.log(`${d.summary}\n`);
 for (const f of d.findings) {
