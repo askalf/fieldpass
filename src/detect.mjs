@@ -83,7 +83,14 @@ function hasExfilLeg(text, folded, ctx) {
 export function analyzeNode(node, ctx) {
   const raw = node.text || '';
   const clean = stripInvisible(raw);
-  const zeroWidth = clean.length !== raw.length;
+  // Smuggling needs something to smuggle. A node whose text is ONLY invisible
+  // characters carries no payload a model could act on — that shape is layout
+  // and accessibility markup (zero-width break opportunities, bidi marks in a
+  // visibility:hidden span), not an attack. Requiring substance keeps this
+  // signal consistent with the hidden-with-substance rule below; a zero-width
+  // char inserted INTO real text (the actual evasion) still flags, because
+  // `clean` is then non-empty.
+  const zeroWidth = clean.length !== raw.length && clean.trim().length > 0;
   // Signal matching runs on the confusable-folded copy so homoglyph / fullwidth
   // spellings of an imperative can't slip past the patterns; excerpts, URLs and
   // emails below still derive from `clean` so real hosts stay intact.
