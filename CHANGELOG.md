@@ -4,6 +4,76 @@ All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-09-03
+
+### Added
+
+- **`fieldpass scan <url>` works with no browser configured** (#77). Every URL
+  used to route through the CDP path, so with no endpoint set puppeteer got an
+  undefined `browserURL` and threw a bare assert stack — which meant
+  `npx -y @askalf/fieldpass scan https://…` — the zero-install way to point
+  fieldpass at a real page — could never work unless a browser was already
+  running.
+  Scanning a local *file* was fine, which is why it went unnoticed. A URL with
+  `--browser` / `PICKET_BROWSER_URL` / `PICKET_CDP` still takes the CDP path
+  unchanged; without one the page is fetched and parsed statically, and fetch
+  failures exit 65 with a message instead of a stack trace. The static parser
+  cannot resolve computed styles, so class-driven white-on-white and offscreen
+  hiding read as visible there — inline and structural hiding are still caught.
+  The header states which path ran (`captured: static` plus a note pointing at
+  `--browser`), and `--json` now carries `capturedBy` so a caller can branch on
+  fidelity.
+- **Fuzzing of the injection trust boundary** (#64) — ClusterFuzzLite over the
+  action gate, capture/detect, and the neutralize fence, running per-PR in CI.
+- `glama.json` for the Glama MCP-server listing (#74).
+
+### Fixed
+
+- **Two false-positive classes found scanning real pages** (#78). Both were the
+  same mistake — a signal treated as a command without requiring anything to
+  command.
+  - *Invisible-only nodes.* `zeroWidth` was `clean.length !== raw.length`, fed
+    straight to the command signal, bypassing the module's own
+    hidden-with-substance rule three lines below. A node holding **only**
+    zero-width characters has no payload to smuggle: on
+    `wikipedia/Social_engineering_(security)` that was four `visibility:hidden`
+    spans of zero-width break opportunities — QUARANTINE, every finding with an
+    empty excerpt. Now requires `clean.trim().length > 0`. A zero-width char
+    inserted *into* real text, the actual evasion, still flags.
+  - *Unanchored role label.* The `(assistant|ai|agent|model|…)\s*[:>]` forgery
+    pattern matched those words before a colon anywhere in a line, so
+    `User-Agent: curl/7.64.1` and "…ordered encoding model:" quarantined
+    RFC 9110. Now anchored to a line start or sentence break, which is where the
+    forgery actually appears; the imperative following a real
+    `Assistant: <do this>` is independently covered by the other patterns, so
+    anchoring costs no coverage on the attack shape.
+
+  Measured over the same 14 real pages: `wikipedia/Social_engineering` and
+  `rfc-editor/rfc9110` go QUARANTINE → ALLOW, `wikipedia/Prompt_injection` drops
+  to the one finding that is genuinely an injection payload quoted in its prose,
+  the five hostile fixtures and nine other real pages are unchanged.
+
+### Changed
+
+- **`node-html-parser` → `^9.0.1`** (#69), a major bump of a runtime dependency.
+- Patched transitive dependencies pinned through `overrides`: `fast-uri`
+  (#62, #89), `hono` / `@hono/node-server` (#60, #73), `brace-expansion`,
+  and `ip-address` in the lockfile (#72). `@anthropic-ai/sdk` (optional) to
+  `^0.122.0`, `puppeteer-core` (optional) to `^25.9.0`.
+- **`qs` overridden to `^6.16.0`**, closing GHSA-4mjr-xmp4-gh2g (DoS via
+  attacker-controlled `isBuffer`) and GHSA-x5fp-wj9c-mxmx (array-limit bypass
+  via bracket-key comma parsing). This is a *runtime* path, not a dev one —
+  `@modelcontextprotocol/sdk` → `express` → `qs` — so it parses query strings
+  in the `fieldpass-mcp --http` transport. Both were open Dependabot alerts
+  against 0.5.1.
+- Example projects: vulnerable Python demo deps bumped, with the unfixable
+  chromadb advisory documented in an `osv-scanner.toml` ignore (#67).
+
+### Docs
+
+- README rewritten to lead with the demo verdict, promote the incidents suite,
+  and correct stale counts (#79); badge row and plumbline cross-link (#63).
+
 ## [0.5.1] — 2026-07-18
 
 ### Fixed
