@@ -1,0 +1,90 @@
+# Path → label map for .github/workflows/pr-triage.yml (actions/labeler v7).
+#
+# Additive only: sync-labels is off, so nothing here ever strips a label a
+# human — or Dependabot — put on a PR by hand. Add a path, get a label.
+#
+# Label names match the Own Your Stack family vocabulary (redstamp is the
+# reference): bare nouns, not `area:` prefixes, so a reader moving between
+# repos sees the same words for the same things.
+
+detection:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/detect.mjs'
+          - 'src/patterns.mjs'
+          - 'src/policy.mjs'
+          - 'src/oracle.mjs'
+          - 'src/judge.mjs'
+          - 'src/claude-judge.mjs'
+
+# The browser side: how a page becomes an observation the detector can read.
+capture:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/capture.mjs'
+          - 'src/broker.mjs'
+          - 'src/observation.mjs'
+
+# The action gate and the safe view — what an agent is allowed to do, and what
+# it is allowed to see.
+gate:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/govern.mjs'
+          - 'src/neutralize.mjs'
+          - 'src/skill.mjs'
+
+cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'bin/picket.mjs'
+          - 'bin/picket-mcp.mjs'
+
+mcp:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/mcp.mjs'
+          - 'src/mcp-http.mjs'
+          - 'bin/picket-mcp.mjs'
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'test/**'
+          - '**/*.test.mjs'
+          - '**/*.test.js'
+
+fuzz:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'fuzz/**'
+          - '.clusterfuzzlite/**'
+
+# The reproduced real-world agentic-browser failures, and the demos that drive
+# them — the receipts, so a change here changes what the project claims.
+examples:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'examples/**'
+          - 'demo/**'
+          - 'incidents/**'
+
+github_actions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**'
+          - '.github/labeler.yml'
+
+# Prose only. Scoped to the docs that exist rather than a bare '**/*.md', so a
+# PR shipping code plus its README paragraph is not filed as documentation.
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'README.md'
+          - 'CHANGELOG.md'
+          - 'CONTRIBUTING.md'
+          - 'CODE_OF_CONDUCT.md'
+          - 'SECURITY.md'
+          - 'docs/**'
+          - '.github/ISSUE_TEMPLATE/**'
+          - '.github/pull_request_template.md'

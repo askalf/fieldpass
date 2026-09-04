@@ -1,0 +1,67 @@
+name: False positive — fieldpass flagged benign content
+description: A page, document or tool output fieldpass quarantines or blocks that carries no injection.
+title: 'false positive: '
+labels: ['false positive', 'detection']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        False positives decide whether a firewall like this is usable: a gate
+        that quarantines Wikipedia is a gate people switch off. A report with
+        the matched text in it is usually enough to fix the rule — two real
+        ones, an encyclopedia article and RFC 9110, are what produced the
+        current anchoring rules.
+
+  - type: input
+    id: target
+    attributes:
+      label: What was scanned
+      description: The URL, or the kind of document if it is not public.
+      placeholder: 'https://www.rfc-editor.org/rfc/rfc9110.html'
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: fieldpass output
+      description: >
+        The full verdict. `fieldpass scan <url> --json` is ideal — it carries
+        every finding with its flag, excerpt and location. Please keep the
+        `capturedBy` field: a static fetch and a live CDP capture resolve
+        hidden text differently, and which one ran changes the answer.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why you believe it is benign
+      description: >
+        What the matched text is actually doing. The most useful reports name
+        the mechanism — "this is prose describing an attack, not issuing one",
+        "this is a `User-Agent:` header inside an HTTP example", "these are
+        zero-width characters used for line breaking, with no payload".
+    validations:
+      required: true
+
+  - type: dropdown
+    id: verdict
+    attributes:
+      label: What verdict did you get
+      options:
+        - QUARANTINE (payload withheld)
+        - BLOCK (lethal trifecta reported)
+        - FLAG
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: fieldpass version
+      placeholder: '0.6.0'
+    validations:
+      required: false
