@@ -4,6 +4,22 @@ All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
 
+### Security
+
+- **Scorecard alert #26 named three chromadb advisories the ignore file never
+  covered.** `examples/crewai-picket/osv-scanner.toml` listed `PYSEC-2026-311`,
+  which aliases to CVE-2026-45829 — a *different* chromadb advisory from the
+  three OSSF Scorecard actually reports (CVE-2026-45830 / -45833 / -45831,
+  GHSA-2wm9-hf6c-p5cr / GHSA-36p7-vc44-83pf / GHSA-xph7-9rjv-w5fr). The existing
+  entry does work — 45829 dropped out of Scorecard's list once it landed, which is
+  what proves Scorecard honours this file — it simply never named these IDs, so
+  the check stayed at "3 existing vulnerabilities detected". Added all three under
+  the same reachability analysis and revisit date. No patched chromadb exists
+  (OSV `last_affected` 1.5.9; 1.5.9 is the newest release on PyPI), and chromadb
+  is not declared here at all — it arrives transitively through `crewai==1.15.7`'s
+  `chromadb~=1.1.0`. Examples only; nothing fieldpass ships has a Python
+  dependency.
+
 ## [0.6.0] — 2026-09-03
 
 ### Added
