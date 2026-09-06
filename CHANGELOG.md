@@ -4,6 +4,7 @@ All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-06
 
 ### Fixed
 - `PICKET_CDP` / `--browser` accept a browserless-style token on the URL
