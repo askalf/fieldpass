@@ -1,3 +1,5 @@
+> **Moved (2026-09-06).** fieldpass now lives in [askalf/browser-bridge](https://github.com/askalf/browser-bridge) under [`policy/`](https://github.com/askalf/browser-bridge/tree/master/policy): the bridge is the runtime, fieldpass is its policy layer. The npm package **`@askalf/fieldpass`**, its bins, env vars and MCP tool names are unchanged; releases continue from the new repo. This repository is archived and read-only. File issues on browser-bridge.
+
 <div align="center">
 
 # fieldpass
