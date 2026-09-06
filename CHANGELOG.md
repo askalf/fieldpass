@@ -4,6 +4,7 @@ All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-06
 
 ### Moved
 - Repository moved into [askalf/browser-bridge](https://github.com/askalf/browser-bridge) as `policy/` (2026-09-06). Package name, bins, env vars and MCP tool names unchanged; further releases come from the new repo. This repo is archived.
