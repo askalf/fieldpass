@@ -4,6 +4,18 @@ All notable changes to `@askalf/fieldpass` are documented here.
 
 ## [Unreleased]
 
+
+### Fixed
+- `PICKET_CDP` / `--browser` accept a browserless-style token on the URL
+  (`http://host:port/?token=…`), which is how askalf/browser-bridge's
+  `BRIDGE_TOKEN` is presented. Before, the base was string-concatenated with
+  `/json/version`, so a token turned into `…/?token=X/json/version` and the
+  connect failed with "Invalid URL". The resolver (`bridgeEndpoint`, now
+  exported from `capture.mjs` and shared by the MCP server and the CLI) parses
+  the base, carries the token on `/json/version` and on the returned
+  WebSocket endpoint, rewrites the ws host back to the base (tunnelled bridges
+  advertise their internal address), and turns a 401 into a message that
+  names the token. Five unit tests (`test/bridge-endpoint.test.mjs`).
 ### Security
 
 - **Scorecard alert #26 named three chromadb advisories the ignore file never
